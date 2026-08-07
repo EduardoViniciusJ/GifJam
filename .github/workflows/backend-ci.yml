@@ -33,6 +33,16 @@ jobs:
       - run: dotnet build GifJam.sln -c Release --no-restore
       - run: dotnet test GifJam.sln -c Release --no-build --logger "console;verbosity=minimal"
       - run: dotnet list GifJam.sln package --vulnerable --include-transitive
+      - name: Validate Azure Bicep templates
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/Azure/bicep/releases/download/v0.45.15/bicep-linux-x64 \
+            --output "$RUNNER_TEMP/bicep"
+          echo "ff5b194b042c220df4a50d6768ed1d6c39a32894bfdc4ff83d62b115d966a7ce  $RUNNER_TEMP/bicep" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/bicep"
+          "$RUNNER_TEMP/bicep" build deploy/registry.bicep --stdout > /dev/null
+          "$RUNNER_TEMP/bicep" build deploy/main.bicep --stdout > /dev/null
       - shell: pwsh
         run: ./scripts/Export-OpenApi.ps1
       - run: git diff --exit-code -- openapi/openapi.json
