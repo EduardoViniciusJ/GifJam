@@ -250,10 +250,14 @@ public sealed class GameService(
             .ThenInclude(player => player.User)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.Phrases)
+            .ThenInclude(phrase => phrase.User)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.PhraseVotes)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.GifSubmissions)
+            .ThenInclude(submission => submission.User)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.GifVotes)
             .Where(game => game.Id == gameId);
         if (!tracking)
         {

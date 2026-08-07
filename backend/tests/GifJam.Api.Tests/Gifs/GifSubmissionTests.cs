@@ -143,6 +143,14 @@ public sealed class GifSubmissionTests(PostgresFixture database)
             CreatedAt = factory.Clock.UtcNow,
             UpdatedAt = factory.Clock.UtcNow
         };
+        var guest = new User
+        {
+            DiscordId = "gif-guest",
+            Username = "gif-guest",
+            DisplayName = "GIF Guest",
+            CreatedAt = factory.Clock.UtcNow,
+            UpdatedAt = factory.Clock.UtcNow
+        };
         var game = new Game
         {
             Code = "ABCDE",
@@ -160,6 +168,17 @@ public sealed class GifSubmissionTests(PostgresFixture database)
             Game = game,
             UserId = host.Id,
             User = host,
+            IsReady = true,
+            IsConnected = true,
+            JoinedAt = factory.Clock.UtcNow,
+            LastSeenAt = factory.Clock.UtcNow
+        });
+        game.Players.Add(new()
+        {
+            GameId = game.Id,
+            Game = game,
+            UserId = guest.Id,
+            User = guest,
             IsReady = true,
             IsConnected = true,
             JoinedAt = factory.Clock.UtcNow,

@@ -14,4 +14,19 @@ public interface IGameRealtimeNotifier
         string gameCode,
         SubmissionProgressSnapshot progress,
         CancellationToken cancellationToken);
+
+    Task RoundRevealedAsync(
+        string gameCode,
+        RoundRevealSnapshot reveal,
+        CancellationToken cancellationToken);
+
+    Task RankingUpdatedAsync(
+        string gameCode,
+        RankingSnapshot ranking,
+        CancellationToken cancellationToken);
+
+    Task GameFinishedAsync(
+        string gameCode,
+        GameFinishedSnapshot game,
+        CancellationToken cancellationToken);
 }

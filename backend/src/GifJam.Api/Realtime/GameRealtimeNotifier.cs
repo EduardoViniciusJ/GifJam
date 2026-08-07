@@ -29,4 +29,22 @@ public sealed class GameRealtimeNotifier(IHubContext<GameHub, IGameClient> hubCo
         SubmissionProgressSnapshot progress,
         CancellationToken cancellationToken) =>
         hubContext.Clients.Group(GameGroups.ForCode(gameCode)).SubmissionProgress(progress).WaitAsync(cancellationToken);
+
+    public Task RoundRevealedAsync(
+        string gameCode,
+        RoundRevealSnapshot reveal,
+        CancellationToken cancellationToken) =>
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).RoundRevealed(reveal).WaitAsync(cancellationToken);
+
+    public Task RankingUpdatedAsync(
+        string gameCode,
+        RankingSnapshot ranking,
+        CancellationToken cancellationToken) =>
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).RankingUpdated(ranking).WaitAsync(cancellationToken);
+
+    public Task GameFinishedAsync(
+        string gameCode,
+        GameFinishedSnapshot game,
+        CancellationToken cancellationToken) =>
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).GameFinished(game).WaitAsync(cancellationToken);
 }

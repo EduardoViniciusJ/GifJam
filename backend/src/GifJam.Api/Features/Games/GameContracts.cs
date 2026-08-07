@@ -54,11 +54,90 @@ public sealed record PlayerGifSelectionSnapshot(
     string SourceUrl,
     string Attribution);
 
+public sealed record AnonymousGifSnapshot(
+    Guid Id,
+    string Description,
+    string PreviewUrl,
+    string MediaUrl,
+    int Width,
+    int Height,
+    int PreviewWidth,
+    int PreviewHeight,
+    string SourceUrl,
+    string Attribution);
+
+public sealed record PlayerGifSnapshot(
+    Guid Id,
+    string Description,
+    string PreviewUrl,
+    string MediaUrl,
+    int Width,
+    int Height,
+    int PreviewWidth,
+    int PreviewHeight,
+    string SourceUrl,
+    string Attribution,
+    bool IsOwn);
+
+public sealed record RevealedPlayerSnapshot(
+    Guid UserId,
+    string Username,
+    string DisplayName,
+    string? AvatarUrl);
+
+public sealed record RevealedPhraseSnapshot(
+    Guid Id,
+    string Text,
+    RevealedPlayerSnapshot Author);
+
+public sealed record RevealedGifSnapshot(
+    Guid Id,
+    string Description,
+    string PreviewUrl,
+    string MediaUrl,
+    int Width,
+    int Height,
+    int PreviewWidth,
+    int PreviewHeight,
+    string SourceUrl,
+    string Attribution,
+    RevealedPlayerSnapshot Author,
+    int VoteCount,
+    int Position);
+
+public sealed record RoundRevealSnapshot(
+    int RoundNumber,
+    RevealedPhraseSnapshot? Phrase,
+    IReadOnlyList<RevealedGifSnapshot> Gifs,
+    DateTimeOffset ServerTime);
+
+public sealed record RankingEntrySnapshot(
+    int Position,
+    Guid UserId,
+    string Username,
+    string DisplayName,
+    string? AvatarUrl,
+    int Score);
+
+public sealed record RankingSnapshot(
+    string GameCode,
+    int CompletedRounds,
+    bool IsFinal,
+    IReadOnlyList<RankingEntrySnapshot> Entries,
+    DateTimeOffset ServerTime);
+
+public sealed record GameFinishedSnapshot(
+    string GameCode,
+    RankingSnapshot Ranking,
+    DateTimeOffset FinishedAt,
+    DateTimeOffset ServerTime);
+
 public sealed record RoundPhaseSnapshot(
     int RoundNumber,
     RoundPhase Phase,
     DateTimeOffset PhaseEndsAt,
     IReadOnlyList<AnonymousPhraseSnapshot> Phrases,
+    IReadOnlyList<AnonymousGifSnapshot> Gifs,
     SelectedPhraseSnapshot? SelectedPhrase,
     DateTimeOffset ServerTime);
 
@@ -69,9 +148,13 @@ public sealed record PlayerRoundSnapshot(
     bool HasSubmittedPhrase,
     bool HasVotedPhrase,
     bool HasSubmittedGif,
+    bool HasVotedGif,
     IReadOnlyList<PlayerPhraseSnapshot> Phrases,
+    IReadOnlyList<PlayerGifSnapshot> Gifs,
     SelectedPhraseSnapshot? SelectedPhrase,
     PlayerGifSelectionSnapshot? GifSelection,
+    RoundRevealSnapshot? Reveal,
+    RankingSnapshot? Ranking,
     DateTimeOffset ServerTime);
 
 public sealed record SubmissionProgressSnapshot(
