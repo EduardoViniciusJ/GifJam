@@ -5,7 +5,9 @@ using System.Text.Json.Serialization;
 using System.Threading.Channels;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Domain.Enums;
+using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Games;
+using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Realtime.Contracts;
 using GifJam.Api.Tests.Auth;
 using GifJam.Api.Tests.Infrastructure;
@@ -95,8 +97,12 @@ public sealed class GameHubTests(PostgresFixture database)
         await using var guestHub = CreateHub(factory, guestToken);
         var phases = Channel.CreateUnbounded<RoundPhaseSnapshot>();
         var progressEvents = Channel.CreateUnbounded<SubmissionProgressSnapshot>();
+        var reveals = Channel.CreateUnbounded<RoundRevealSnapshot>();
+        var rankings = Channel.CreateUnbounded<RankingSnapshot>();
         hostHub.On<RoundPhaseSnapshot>("PhaseChanged", phase => phases.Writer.TryWrite(phase));
         hostHub.On<SubmissionProgressSnapshot>("SubmissionProgress", progress => progressEvents.Writer.TryWrite(progress));
+        hostHub.On<RoundRevealSnapshot>("RoundRevealed", reveal => reveals.Writer.TryWrite(reveal));
+        hostHub.On<RankingSnapshot>("RankingUpdated", ranking => rankings.Writer.TryWrite(ranking));
 
         await hostHub.StartAsync();
         await guestHub.StartAsync();
@@ -117,6 +123,49 @@ public sealed class GameHubTests(PostgresFixture database)
         Assert.Equal(2, secondProgress.Completed);
         Assert.Equal(RoundPhase.PhraseVoting, voting.Phase);
         Assert.Equal(2, voting.Phrases.Count);
+
+        await using (var phraseContext = database.CreateDbContext())
+        {
+            var phraseIds = await phraseContext.Phrases.ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+            await hostHub.InvokeAsync("VotePhrase", created.Lobby.Code, phraseIds[users[1].Id]);
+            await ReadEventAsync(progressEvents.Reader);
+            await guestHub.InvokeAsync("VotePhrase", created.Lobby.Code, phraseIds[users[0].Id]);
+            await ReadEventAsync(progressEvents.Reader);
+        }
+
+        var gifSubmission = await ReadEventAsync(phases.Reader);
+        Assert.Equal(RoundPhase.GifSubmission, gifSubmission.Phase);
+        using (var scope = factory.Services.CreateScope())
+        {
+            var tokenService = scope.ServiceProvider.GetRequiredService<GifSelectionTokenService>();
+            var hostSelection = tokenService.Create(created.Lobby.Code, CreateGifItem("hub-host-gif"));
+            var guestSelection = tokenService.Create(created.Lobby.Code, CreateGifItem("hub-guest-gif"));
+            await hostHub.InvokeAsync("SubmitGif", created.Lobby.Code, hostSelection);
+            await ReadEventAsync(progressEvents.Reader);
+            await guestHub.InvokeAsync("SubmitGif", created.Lobby.Code, guestSelection);
+            await ReadEventAsync(progressEvents.Reader);
+        }
+
+        var gifVoting = await ReadEventAsync(phases.Reader);
+        Assert.Equal(RoundPhase.GifVoting, gifVoting.Phase);
+        Assert.Equal(2, gifVoting.Gifs.Count);
+        await using (var gifContext = database.CreateDbContext())
+        {
+            var gifIds = await gifContext.GifSubmissions
+                .ToDictionaryAsync(submission => submission.UserId, submission => submission.Id);
+            await hostHub.InvokeAsync("VoteGif", created.Lobby.Code, gifIds[users[1].Id]);
+            await ReadEventAsync(progressEvents.Reader);
+            await guestHub.InvokeAsync("VoteGif", created.Lobby.Code, gifIds[users[0].Id]);
+            await ReadEventAsync(progressEvents.Reader);
+        }
+
+        var results = await ReadEventAsync(phases.Reader);
+        var reveal = await ReadEventAsync(reveals.Reader);
+        var ranking = await ReadEventAsync(rankings.Reader);
+        Assert.Equal(RoundPhase.Results, results.Phase);
+        Assert.Equal(2, reveal.Gifs.Count);
+        Assert.All(reveal.Gifs, gif => Assert.Equal(1, gif.VoteCount));
+        Assert.All(ranking.Entries, entry => Assert.Equal(1, entry.Position));
     }
 
     [Fact]
@@ -183,6 +232,18 @@ public sealed class GameHubTests(PostgresFixture database)
         CreatedAt = now,
         UpdatedAt = now
     };
+
+    private static GifProviderItem CreateGifItem(string id) => new(
+        id,
+        id,
+        $"https://static.klipy.test/{id}-preview.gif",
+        $"https://static.klipy.test/{id}.gif",
+        480,
+        270,
+        240,
+        135,
+        $"https://klipy.test/gifs/{id}",
+        "Powered by KLIPY");
 
     private static HttpClient CreateHttpClient(DiscordAuthFactory factory, string token)
     {

@@ -18,7 +18,8 @@ public sealed class GameCoordinator(
     IClock clock,
     GameStateProjector stateProjector,
     IGameRealtimeNotifier realtimeNotifier,
-    GifSelectionTokenService gifSelectionTokenService)
+    GifSelectionTokenService gifSelectionTokenService,
+    GameTelemetry gameTelemetry)
 {
     private static readonly TimeSpan PhraseSubmissionDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PhraseVotingDuration = TimeSpan.FromSeconds(20);
@@ -71,6 +72,7 @@ public sealed class GameCoordinator(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        gameTelemetry.GameStarted(game.Code, game.Players.Count, game.TotalRounds);
         await PublishPhaseAsync(game, round);
         await realtimeNotifier.LobbyUpdatedAsync(
             game.Code,
@@ -539,10 +541,16 @@ public sealed class GameCoordinator(
     }
 
     private async Task PublishPhaseAsync(Game game, Round round) =>
+        await PublishPhaseCoreAsync(game, round);
+
+    private async Task PublishPhaseCoreAsync(Game game, Round round)
+    {
+        gameTelemetry.PhaseChanged(game.Code, round.RoundNumber, round.Phase);
         await realtimeNotifier.PhaseChangedAsync(
             game.Code,
             stateProjector.CreatePhaseSnapshot(round),
             CancellationToken.None);
+    }
 
     private async Task PublishTransitionAsync(Game game, Round round)
     {
@@ -561,6 +569,10 @@ public sealed class GameCoordinator(
 
         if (game.Status == GameStatus.Finished)
         {
+            gameTelemetry.GameFinished(
+                game.Code,
+                game.TotalRounds,
+                (game.FinishedAt ?? clock.UtcNow) - (game.StartedAt ?? game.CreatedAt));
             var ranking = stateProjector.CreateRankingSnapshot(game, isFinal: true);
             await realtimeNotifier.RankingUpdatedAsync(game.Code, ranking, CancellationToken.None);
             await realtimeNotifier.GameFinishedAsync(

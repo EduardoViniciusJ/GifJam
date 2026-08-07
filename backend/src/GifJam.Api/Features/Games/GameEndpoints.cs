@@ -25,6 +25,9 @@ public static class GameEndpoints
                 return Results.Created($"/api/games/{snapshot.Lobby.Code}", snapshot);
             })
             .RequireRateLimiting(WriteRateLimitPolicy)
+            .Produces<PlayerGameSnapshot>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithName("CreateGame");
 
         group.MapPost("/{code}/join", async (
@@ -37,6 +40,11 @@ public static class GameEndpoints
                     context.User.GetRequiredUserId(),
                     cancellationToken)))
             .RequireRateLimiting(WriteRateLimitPolicy)
+            .Produces<PlayerGameSnapshot>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("JoinGame");
 
         group.MapPost("/{code}/leave", async (
@@ -48,6 +56,10 @@ public static class GameEndpoints
                 await gameService.LeaveAsync(code, context.User.GetRequiredUserId(), cancellationToken);
                 return Results.NoContent();
             })
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .WithName("LeaveGame");
 
         group.MapGet("/{code}", async (
@@ -59,6 +71,10 @@ public static class GameEndpoints
                     code,
                     context.User.GetRequiredUserId(),
                     cancellationToken)))
+            .Produces<PlayerGameSnapshot>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
             .WithName("GetGame");
 
         return endpoints;

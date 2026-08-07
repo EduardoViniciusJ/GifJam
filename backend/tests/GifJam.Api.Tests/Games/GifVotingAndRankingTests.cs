@@ -148,6 +148,74 @@ public sealed class GifVotingAndRankingTests : IDisposable
         Assert.All(ranking.Entries, entry => Assert.Equal(1, entry.Position));
     }
 
+    [Fact]
+    public async Task DuplicateCommandsAndSimultaneousTimeoutRemainIdempotent()
+    {
+        var setup = await CreateReadyGameAsync();
+        await StartRoundAndSelectPhraseAsync(setup, 1);
+        string hostToken;
+        using (var scope = factory.Services.CreateScope())
+        {
+            hostToken = scope.ServiceProvider.GetRequiredService<GifSelectionTokenService>()
+                .Create(setup.Code, CreateGifItem(setup.Host.Username, 1));
+        }
+
+        await Task.WhenAll(
+            WithCoordinatorAsync(coordinator => coordinator.SubmitGifAsync(
+                setup.Code,
+                setup.Host.Id,
+                hostToken,
+                CancellationToken.None)),
+            WithCoordinatorAsync(coordinator => coordinator.SubmitGifAsync(
+                setup.Code,
+                setup.Host.Id,
+                hostToken,
+                CancellationToken.None)));
+        await using (var submissionContext = database.CreateDbContext())
+        {
+            Assert.Equal(1, await submissionContext.GifSubmissions.CountAsync());
+            Assert.Equal(RoundPhase.GifSubmission, (await submissionContext.Rounds.SingleAsync()).Phase);
+        }
+
+        await SubmitGifAsync(setup.Code, setup.Guest, 1);
+        var gifIds = await LoadGifIdsAsync(1);
+        await Task.WhenAll(
+            WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
+                setup.Code,
+                setup.Host.Id,
+                gifIds[setup.Guest.Id],
+                CancellationToken.None)),
+            WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
+                setup.Code,
+                setup.Host.Id,
+                gifIds[setup.Guest.Id],
+                CancellationToken.None)));
+
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(21);
+        var lateVote = WithCoordinatorAsync(async coordinator =>
+        {
+            try
+            {
+                await coordinator.VoteGifAsync(
+                    setup.Code,
+                    setup.Guest.Id,
+                    gifIds[setup.Host.Id],
+                    CancellationToken.None);
+            }
+            catch (ApiException exception) when (exception.Code is "phase_expired" or "invalid_round_phase")
+            {
+            }
+
+            return true;
+        });
+        await Task.WhenAll(lateVote, ProcessExpiredAsync());
+
+        await using var context = database.CreateDbContext();
+        Assert.Equal(RoundPhase.Results, (await context.Rounds.SingleAsync()).Phase);
+        Assert.Equal(1, await context.GifVotes.CountAsync());
+        Assert.Equal(1, await context.GamePlayers.SumAsync(player => player.Score));
+    }
+
     public void Dispose()
     {
         factory.Dispose();

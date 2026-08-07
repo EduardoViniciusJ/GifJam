@@ -23,6 +23,14 @@ public static class GifEndpoints
                     cancellationToken)))
             .RequireAuthorization()
             .RequireRateLimiting(SearchRateLimitPolicy)
+            .Produces<GifSearchResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .ProducesProblem(StatusCodes.Status429TooManyRequests)
+            .ProducesProblem(StatusCodes.Status503ServiceUnavailable)
             .WithTags("GIFs")
             .WithName("SearchGifs");
 

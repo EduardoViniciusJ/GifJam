@@ -14,6 +14,7 @@ public static class AuthEndpoints
                 Results.Redirect(authService.CreateAuthorizationUri(returnUrl).ToString()))
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicy)
+            .Produces(StatusCodes.Status302Found)
             .WithName("StartDiscordAuthentication");
 
         group.MapGet("/discord/callback", async (
@@ -34,6 +35,8 @@ public static class AuthEndpoints
             })
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicy)
+            .Produces(StatusCodes.Status302Found)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithName("CompleteDiscordAuthentication");
 
         group.MapPost("/exchange", async (
@@ -43,6 +46,8 @@ public static class AuthEndpoints
                 Results.Ok(await authService.ExchangeAsync(request, cancellationToken)))
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicy)
+            .Produces<AuthResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithName("ExchangeAuthenticationCode");
 
         group.MapGet("/me", async (
@@ -53,6 +58,8 @@ public static class AuthEndpoints
                     context.User.GetRequiredUserId(),
                     cancellationToken)))
             .RequireAuthorization()
+            .Produces<AuthUserResponse>()
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithName("GetCurrentUser");
 
         return endpoints;

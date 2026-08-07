@@ -3,6 +3,7 @@ using GifJam.Api.Common.Health;
 using GifJam.Api.Common.Random;
 using GifJam.Api.Common.Time;
 using GifJam.Api.Common.Auth;
+using GifJam.Api.Common.Observability;
 using GifJam.Api.Data;
 using GifJam.Api.Data.Cleanup;
 using GifJam.Api.Features.Auth;
@@ -27,6 +28,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options => options.IncludeScopes = true);
+builder.Logging.Configure(options => options.ActivityTrackingOptions =
+    ActivityTrackingOptions.TraceId | ActivityTrackingOptions.SpanId);
 
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails(options =>
@@ -34,7 +37,7 @@ builder.Services.AddProblemDetails(options =>
     options.CustomizeProblemDetails = context =>
     {
         context.ProblemDetails.Extensions.TryAdd("code", "http_error");
-        context.ProblemDetails.Extensions.TryAdd("traceId", context.HttpContext.TraceIdentifier);
+        context.ProblemDetails.Extensions.TryAdd("traceId", TraceContext.GetTraceId(context.HttpContext));
     };
 });
 builder.Services.AddEndpointsApiExplorer();
@@ -55,7 +58,6 @@ builder.Services.AddOptions<GameRetentionOptions>()
     .Validate(options => options.CleanupIntervalMinutes > 0, "CleanupIntervalMinutes must be greater than zero.")
     .ValidateOnStart();
 builder.Services.AddScoped<GameCleanupService>();
-builder.Services.AddHostedService<GameCleanupWorker>();
 builder.Services.AddOptions<DiscordOptions>()
     .BindConfiguration(DiscordOptions.SectionName)
     .PostConfigure(options =>
@@ -168,14 +170,19 @@ builder.Services.AddSingleton<GifSelectionTokenService>();
 builder.Services.AddScoped<GifSearchService>();
 builder.Services.AddSingleton<IGameCodeGenerator, GameCodeGenerator>();
 builder.Services.AddSingleton<IGameLockManager, GameLockManager>();
+builder.Services.AddSingleton<GameTelemetry>();
 builder.Services.AddSingleton<GameStateProjector>();
 builder.Services.AddSingleton<GameConnectionRegistry>();
 builder.Services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<GameCoordinator>();
 builder.Services.AddScoped<GameRecoveryService>();
-builder.Services.AddHostedService<GameRecoveryWorker>();
-builder.Services.AddHostedService<RoundScheduler>();
+if (builder.Configuration.GetValue("BackgroundServices:Enabled", true))
+{
+    builder.Services.AddHostedService<GameCleanupWorker>();
+    builder.Services.AddHostedService<GameRecoveryWorker>();
+    builder.Services.AddHostedService<RoundScheduler>();
+}
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
