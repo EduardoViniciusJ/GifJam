@@ -13,6 +13,7 @@ public sealed class GifSubmissionConfiguration : IEntityTypeConfiguration<GifSub
         builder.HasIndex(submission => new { submission.RoundId, submission.UserId }).IsUnique();
         builder.Property(submission => submission.Provider).HasMaxLength(32).IsRequired();
         builder.Property(submission => submission.ExternalId).HasMaxLength(128).IsRequired();
+        builder.Property(submission => submission.Description).HasMaxLength(512).IsRequired();
         builder.Property(submission => submission.PreviewUrl).HasMaxLength(2048).IsRequired();
         builder.Property(submission => submission.MediaUrl).HasMaxLength(2048).IsRequired();
         builder.Property(submission => submission.SourceUrl).HasMaxLength(2048).IsRequired();

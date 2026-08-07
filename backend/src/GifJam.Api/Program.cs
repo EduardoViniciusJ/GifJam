@@ -6,9 +6,11 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
 using GifJam.Api.Data.Cleanup;
 using GifJam.Api.Features.Auth;
+using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Games;
 using GifJam.Api.GameEngine;
 using GifJam.Api.Integrations.Discord;
+using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -17,6 +19,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
@@ -87,6 +90,14 @@ builder.Services.AddOptions<ApplicationUrlOptions>()
     })
     .Validate(options => Uri.TryCreate(options.FrontendUrl, UriKind.Absolute, out _), "FrontendUrl must be absolute.")
     .ValidateOnStart();
+builder.Services.AddOptions<KlipyOptions>()
+    .BindConfiguration(KlipyOptions.SectionName)
+    .Validate(options => !string.IsNullOrWhiteSpace(options.ApiKey), "KLIPY ApiKey is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps,
+        "KLIPY BaseUrl must be an absolute HTTPS URL.")
+    .Validate(options => options.Locale.Length is >= 2 and <= 16, "KLIPY Locale is invalid.")
+    .Validate(options => options.Country.Length == 2, "KLIPY Country must be an ISO alpha-2 code.")
+    .ValidateOnStart();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -130,12 +141,31 @@ builder.Services.AddRateLimiter(options =>
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
+    options.AddPolicy(GifEndpoints.SearchRateLimitPolicy, context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unauthenticated",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 builder.Services.AddHttpClient<IDiscordClient, DiscordClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(5));
+builder.Services.AddHttpClient<IGifProvider, KlipyGifProvider>((services, client) =>
+    {
+        var options = services.GetRequiredService<IOptions<KlipyOptions>>().Value;
+        client.BaseAddress = new(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(5);
+    })
+    .RemoveAllLoggers();
 builder.Services.AddScoped<AuthStateService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddSingleton<GifSelectionTokenService>();
+builder.Services.AddScoped<GifSearchService>();
 builder.Services.AddSingleton<IGameCodeGenerator, GameCodeGenerator>();
 builder.Services.AddSingleton<IGameLockManager, GameLockManager>();
 builder.Services.AddSingleton<GameStateProjector>();
@@ -177,8 +207,8 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 
 app.UseHttpsRedirection();
 app.UseCors("frontend");
-app.UseRateLimiter();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
@@ -197,6 +227,7 @@ app.MapGet("/", () => Results.Ok(new { name = "GifJam API", status = "running" }
     .ExcludeFromDescription();
 app.MapAuthEndpoints();
 app.MapGameEndpoints();
+app.MapGifEndpoints();
 app.MapHub<GameHub>("/hubs/game");
 
 app.Run();

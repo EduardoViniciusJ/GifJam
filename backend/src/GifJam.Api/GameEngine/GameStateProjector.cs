@@ -72,14 +72,27 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
                 phrase.Text,
                 phrase.UserId == userId)))
             : [];
+        var gifSelection = round.GifSubmissions.SingleOrDefault(submission => submission.UserId == userId);
         return new(
             round.RoundNumber,
             round.Phase,
             round.PhaseEndsAt,
             round.Phrases.Any(phrase => phrase.UserId == userId),
             round.PhraseVotes.Any(vote => vote.UserId == userId),
+            gifSelection is not null,
             phrases,
             CreateSelectedPhrase(round),
+            gifSelection is null ? null : new(
+                gifSelection.ExternalId,
+                gifSelection.Description,
+                gifSelection.PreviewUrl,
+                gifSelection.MediaUrl,
+                gifSelection.Width,
+                gifSelection.Height,
+                gifSelection.PreviewWidth,
+                gifSelection.PreviewHeight,
+                gifSelection.SourceUrl,
+                gifSelection.Attribution),
             clock.UtcNow);
     }
 

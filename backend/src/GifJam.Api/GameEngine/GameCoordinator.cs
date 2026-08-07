@@ -5,6 +5,7 @@ using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Domain.Enums;
 using GifJam.Api.Features.Games;
+using GifJam.Api.Features.Gifs;
 using GifJam.Api.Realtime;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,7 +17,8 @@ public sealed class GameCoordinator(
     IRandomizer randomizer,
     IClock clock,
     GameStateProjector stateProjector,
-    IGameRealtimeNotifier realtimeNotifier)
+    IGameRealtimeNotifier realtimeNotifier,
+    GifSelectionTokenService gifSelectionTokenService)
 {
     private static readonly TimeSpan PhraseSubmissionDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PhraseVotingDuration = TimeSpan.FromSeconds(20);
@@ -213,6 +215,57 @@ public sealed class GameCoordinator(
         return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
+    public async Task<PlayerGameSnapshot> SubmitGifAsync(
+        string gameCode,
+        Guid userId,
+        string selectionToken,
+        CancellationToken cancellationToken)
+    {
+        var normalizedCode = gameCode.Trim().ToUpperInvariant();
+        var selection = gifSelectionTokenService.Validate(selectionToken, normalizedCode);
+        var gameId = await FindGameIdAsync(normalizedCode, cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        EnsureMember(game, userId);
+        var round = GetCurrentRound(game);
+        EnsurePhase(round, RoundPhase.GifSubmission);
+        EnsureBeforeDeadline(round);
+
+        var submission = round.GifSubmissions.SingleOrDefault(saved => saved.UserId == userId);
+        if (submission is null)
+        {
+            submission = new()
+            {
+                RoundId = round.Id,
+                Round = round,
+                UserId = userId
+            };
+            dbContext.GifSubmissions.Add(submission);
+        }
+
+        submission.Provider = selection.Provider;
+        submission.ExternalId = selection.ExternalId;
+        submission.Description = selection.Description;
+        submission.PreviewUrl = selection.PreviewUrl;
+        submission.MediaUrl = selection.MediaUrl;
+        submission.Width = selection.Width;
+        submission.Height = selection.Height;
+        submission.PreviewWidth = selection.PreviewWidth;
+        submission.PreviewHeight = selection.PreviewHeight;
+        submission.SourceUrl = selection.SourceUrl;
+        submission.Attribution = selection.Attribution;
+        submission.SubmittedAt = clock.UtcNow;
+
+        var progress = GetSubmissionProgress(game, round, static (savedRound, participantId) =>
+            savedRound.GifSubmissions.Any(saved => saved.UserId == participantId));
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
+        return stateProjector.CreatePlayerSnapshot(game, userId);
+    }
+
     public async Task ProcessExpiredRoundsAsync(CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
@@ -381,6 +434,10 @@ public sealed class GameCoordinator(
             .ThenInclude(round => round.Phrases)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.PhraseVotes)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.GifSubmissions)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.GifVotes)
             .Where(game => game.Id == gameId)
             .AsSplitQuery()
             .SingleAsync(cancellationToken);
