@@ -17,4 +17,16 @@ public sealed class GameRealtimeNotifier(IHubContext<GameHub, IGameClient> hubCo
         PresenceSnapshot snapshot,
         CancellationToken cancellationToken) =>
         hubContext.Clients.Group(GameGroups.ForCode(gameCode)).PresenceChanged(snapshot).WaitAsync(cancellationToken);
+
+    public Task PhaseChangedAsync(
+        string gameCode,
+        RoundPhaseSnapshot snapshot,
+        CancellationToken cancellationToken) =>
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).PhaseChanged(snapshot).WaitAsync(cancellationToken);
+
+    public Task SubmissionProgressAsync(
+        string gameCode,
+        SubmissionProgressSnapshot progress,
+        CancellationToken cancellationToken) =>
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).SubmissionProgress(progress).WaitAsync(cancellationToken);
 }

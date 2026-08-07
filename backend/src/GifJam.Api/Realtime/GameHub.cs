@@ -1,6 +1,7 @@
 using GifJam.Api.Common.Auth;
 using GifJam.Api.Common.Errors;
 using GifJam.Api.Features.Games;
+using GifJam.Api.GameEngine;
 using GifJam.Api.Realtime.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -10,6 +11,7 @@ namespace GifJam.Api.Realtime;
 [Authorize]
 public sealed class GameHub(
     GameService gameService,
+    GameCoordinator gameCoordinator,
     GameConnectionRegistry connectionRegistry) : Hub<IGameClient>
 {
     public async Task SubscribeGame(string gameCode)
@@ -38,6 +40,24 @@ public sealed class GameHub(
         var userId = Context.User!.GetRequiredUserId();
         var snapshot = await gameService.GetAsync(gameCode, userId, Context.ConnectionAborted);
         await Clients.Caller.StateSynced(snapshot);
+    });
+
+    public Task StartGame(string gameCode) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameCoordinator.StartGameAsync(gameCode, userId, Context.ConnectionAborted);
+    });
+
+    public Task SubmitPhrase(string gameCode, string text) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameCoordinator.SubmitPhraseAsync(gameCode, userId, text, Context.ConnectionAborted);
+    });
+
+    public Task VotePhrase(string gameCode, Guid phraseId) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameCoordinator.VotePhraseAsync(gameCode, userId, phraseId, Context.ConnectionAborted);
     });
 
     public override async Task OnDisconnectedAsync(Exception? exception)

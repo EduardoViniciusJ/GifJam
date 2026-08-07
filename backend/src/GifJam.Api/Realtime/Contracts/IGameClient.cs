@@ -10,6 +10,10 @@ public interface IGameClient
 
     Task PresenceChanged(PresenceSnapshot snapshot);
 
+    Task PhaseChanged(RoundPhaseSnapshot snapshot);
+
+    Task SubmissionProgress(SubmissionProgressSnapshot progress);
+
     Task CommandRejected(CommandRejectedMessage rejection);
 }
 

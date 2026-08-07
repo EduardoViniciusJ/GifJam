@@ -14,6 +14,7 @@ public sealed class GameService(
     IGameCodeGenerator codeGenerator,
     IGameLockManager lockManager,
     IGameRealtimeNotifier realtimeNotifier,
+    GameStateProjector stateProjector,
     IClock clock)
 {
     private const int MaximumPlayers = 6;
@@ -105,7 +106,7 @@ public sealed class GameService(
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await ReloadPlayersAsync(game, cancellationToken);
-        var lobby = MapLobby(game);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
         await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
         return new(lobby, game.HostUserId == userId);
     }
@@ -141,7 +142,7 @@ public sealed class GameService(
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await ReloadPlayersAsync(game, cancellationToken);
-        await realtimeNotifier.LobbyUpdatedAsync(game.Code, MapLobby(game), cancellationToken);
+        await realtimeNotifier.LobbyUpdatedAsync(game.Code, stateProjector.CreateLobbySnapshot(game), cancellationToken);
     }
 
     public async Task<PlayerGameSnapshot> GetAsync(
@@ -152,7 +153,7 @@ public sealed class GameService(
         var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken, tracking: false);
         EnsureMembership(game, userId);
-        return new(MapLobby(game), game.HostUserId == userId);
+        return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
     public async Task<PlayerGameSnapshot> ConnectAsync(
@@ -168,8 +169,11 @@ public sealed class GameService(
         player.IsConnected = true;
         player.LastSeenAt = clock.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await realtimeNotifier.PresenceChangedAsync(game.Code, MapPresence(game), cancellationToken);
-        return new(MapLobby(game), game.HostUserId == userId);
+        await realtimeNotifier.PresenceChangedAsync(
+            game.Code,
+            stateProjector.CreatePresenceSnapshot(game),
+            cancellationToken);
+        return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
     public async Task DisconnectAsync(
@@ -198,7 +202,10 @@ public sealed class GameService(
         player.IsConnected = false;
         player.LastSeenAt = clock.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
-        await realtimeNotifier.PresenceChangedAsync(game.Code, MapPresence(game), cancellationToken);
+        await realtimeNotifier.PresenceChangedAsync(
+            game.Code,
+            stateProjector.CreatePresenceSnapshot(game),
+            cancellationToken);
     }
 
     public async Task<LobbySnapshot> SetReadyAsync(
@@ -219,7 +226,7 @@ public sealed class GameService(
         player.IsReady = game.HostUserId == userId || isReady;
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
-        var lobby = MapLobby(game);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
         await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
         return lobby;
     }
@@ -241,13 +248,17 @@ public sealed class GameService(
         var query = dbContext.Games
             .Include(game => game.Players)
             .ThenInclude(player => player.User)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.Phrases)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.PhraseVotes)
             .Where(game => game.Id == gameId);
         if (!tracking)
         {
             query = query.AsNoTracking();
         }
 
-        return await query.SingleAsync(cancellationToken);
+        return await query.AsSplitQuery().SingleAsync(cancellationToken);
     }
 
     private async Task ReloadPlayersAsync(Game game, CancellationToken cancellationToken)
@@ -256,40 +267,6 @@ public sealed class GameService(
             .Include(player => player.User)
             .LoadAsync(cancellationToken);
     }
-
-    private LobbySnapshot MapLobby(Game game)
-    {
-        var players = game.Players
-            .OrderBy(player => player.JoinedAt)
-            .Select(player => new LobbyPlayerSnapshot(
-                player.UserId,
-                player.User.Username,
-                player.User.DisplayName,
-                player.User.AvatarUrl,
-                player.Score,
-                player.IsReady,
-                player.IsConnected,
-                player.UserId == game.HostUserId))
-            .ToArray();
-        var canStart = players.Length >= 2 && players.Where(player => !player.IsHost).All(player => player.IsReady);
-        return new(
-            game.Code,
-            game.Status,
-            game.TotalRounds,
-            game.CurrentRoundNumber,
-            game.HostUserId,
-            canStart,
-            players,
-            clock.UtcNow);
-    }
-
-    private PresenceSnapshot MapPresence(Game game) => new(
-        game.Code,
-        game.Players
-            .OrderBy(player => player.JoinedAt)
-            .Select(player => new PresencePlayerSnapshot(player.UserId, player.IsConnected))
-            .ToArray(),
-        clock.UtcNow);
 
     private static GamePlayer EnsureMembership(Game game, Guid userId) =>
         game.Players.SingleOrDefault(player => player.UserId == userId) ?? throw NotMember();

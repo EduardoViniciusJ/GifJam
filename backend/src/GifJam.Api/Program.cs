@@ -138,9 +138,12 @@ builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<IGameCodeGenerator, GameCodeGenerator>();
 builder.Services.AddSingleton<IGameLockManager, GameLockManager>();
+builder.Services.AddSingleton<GameStateProjector>();
 builder.Services.AddSingleton<GameConnectionRegistry>();
 builder.Services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
 builder.Services.AddScoped<GameService>();
+builder.Services.AddScoped<GameCoordinator>();
+builder.Services.AddHostedService<RoundScheduler>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
