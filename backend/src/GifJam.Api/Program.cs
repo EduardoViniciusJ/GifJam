@@ -1,7 +1,12 @@
 using GifJam.Api.Common.Errors;
 using GifJam.Api.Common.Health;
+using GifJam.Api.Common.Random;
+using GifJam.Api.Common.Time;
+using GifJam.Api.Data;
+using GifJam.Api.Data.Cleanup;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,6 +25,18 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IClock, SystemClock>();
+builder.Services.AddSingleton<IRandomizer, CryptoRandomizer>();
+builder.Services.AddOptions<GameRetentionOptions>()
+    .BindConfiguration(GameRetentionOptions.SectionName)
+    .Validate(options => options.RetentionHours > 0, "RetentionHours must be greater than zero.")
+    .Validate(options => options.CleanupIntervalMinutes > 0, "CleanupIntervalMinutes must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.AddScoped<GameCleanupService>();
+builder.Services.AddHostedService<GameCleanupWorker>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
