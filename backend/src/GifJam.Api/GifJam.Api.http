@@ -1,0 +1,9 @@
+@GifJam_Api_HostAddress = https://localhost:7042
+
+GET {{GifJam_Api_HostAddress}}/health/live
+Accept: application/json
+
+###
+
+GET {{GifJam_Api_HostAddress}}/health/ready
+Accept: application/json

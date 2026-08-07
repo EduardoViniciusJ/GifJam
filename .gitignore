@@ -60,6 +60,9 @@ bin/
 obj/
 AGENTS.MD
 Tasks.md
+/INSTRUCTIONS.md
+/TASK-BACK.md
+/TASK-FRONTEND.md
 *.csproj.user
 docs/
 
@@ -72,6 +75,8 @@ docs/
 # Local secrets (do not commit)
 .env
 .env.*
+!.env.example
+!**/.env.example
 **/appsettings.Development.json
 **/appsettings.*.Development.json
 **/appsettings.Local.json
