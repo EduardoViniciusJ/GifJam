@@ -79,7 +79,10 @@ public sealed class GameHub(
         {
             foreach (var gameCode in registration.GameCodes.Keys)
             {
-                await gameService.DisconnectAsync(gameCode, registration.UserId, CancellationToken.None);
+                if (!connectionRegistry.HasActiveConnection(registration.UserId, gameCode))
+                {
+                    await gameService.DisconnectAsync(gameCode, registration.UserId, CancellationToken.None);
+                }
             }
         }
 

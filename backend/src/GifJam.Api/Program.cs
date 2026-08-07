@@ -173,6 +173,8 @@ builder.Services.AddSingleton<GameConnectionRegistry>();
 builder.Services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
 builder.Services.AddScoped<GameService>();
 builder.Services.AddScoped<GameCoordinator>();
+builder.Services.AddScoped<GameRecoveryService>();
+builder.Services.AddHostedService<GameRecoveryWorker>();
 builder.Services.AddHostedService<RoundScheduler>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])

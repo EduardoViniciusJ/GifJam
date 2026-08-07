@@ -11,6 +11,7 @@ using GifJam.Api.Tests.Auth;
 using GifJam.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace GifJam.Api.Tests.Games;
@@ -116,6 +117,49 @@ public sealed class GameHubTests(PostgresFixture database)
         Assert.Equal(2, secondProgress.Completed);
         Assert.Equal(RoundPhase.PhraseVoting, voting.Phase);
         Assert.Equal(2, voting.Phrases.Count);
+    }
+
+    [Fact]
+    public async Task ClosingOneOfTwoConnectionsKeepsPlayerConnected()
+    {
+        await database.ResetAsync();
+        using var factory = new DiscordAuthFactory(database);
+        var user = (await SeedUsersAsync(factory))[0];
+        var token = factory.CreateAccessToken(user);
+        using var client = CreateHttpClient(factory, token);
+        using var createResponse = await client.PostAsJsonAsync("/api/games", new CreateGameRequest(3));
+        var created = await createResponse.Content.ReadFromJsonAsync<PlayerGameSnapshot>(JsonOptions)
+            ?? throw new InvalidOperationException("Created game snapshot was missing.");
+        await using var firstHub = CreateHub(factory, token);
+        await using var secondHub = CreateHub(factory, token);
+        await firstHub.StartAsync();
+        await secondHub.StartAsync();
+        await firstHub.InvokeAsync("SubscribeGame", created.Lobby.Code);
+        await secondHub.InvokeAsync("SubscribeGame", created.Lobby.Code);
+
+        await firstHub.StopAsync();
+        await Task.Delay(200);
+        await using (var connectedContext = database.CreateDbContext())
+        {
+            Assert.True(await connectedContext.GamePlayers
+                .Where(player => player.UserId == user.Id)
+                .Select(player => player.IsConnected)
+                .SingleAsync());
+        }
+
+        await secondHub.StopAsync();
+        var isConnected = true;
+        for (var attempt = 0; attempt < 20 && isConnected; attempt++)
+        {
+            await Task.Delay(100);
+            await using var context = database.CreateDbContext();
+            isConnected = await context.GamePlayers
+                .Where(player => player.UserId == user.Id)
+                .Select(player => player.IsConnected)
+                .SingleAsync();
+        }
+
+        Assert.False(isConnected);
     }
 
     private async Task<User[]> SeedUsersAsync(DiscordAuthFactory factory)
