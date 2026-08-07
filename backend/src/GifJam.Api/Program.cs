@@ -2,12 +2,19 @@ using GifJam.Api.Common.Errors;
 using GifJam.Api.Common.Health;
 using GifJam.Api.Common.Random;
 using GifJam.Api.Common.Time;
+using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
 using GifJam.Api.Data.Cleanup;
+using GifJam.Api.Features.Auth;
+using GifJam.Api.Integrations.Discord;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Options;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +32,7 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddDataProtection();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
 builder.Services.AddSingleton(TimeProvider.System);
@@ -37,6 +45,83 @@ builder.Services.AddOptions<GameRetentionOptions>()
     .ValidateOnStart();
 builder.Services.AddScoped<GameCleanupService>();
 builder.Services.AddHostedService<GameCleanupWorker>();
+builder.Services.AddOptions<DiscordOptions>()
+    .BindConfiguration(DiscordOptions.SectionName)
+    .PostConfigure(options =>
+    {
+        if (string.IsNullOrWhiteSpace(options.CallbackUrl))
+        {
+            options.CallbackUrl = builder.Configuration["GIFJAM_DISCORD_CALLBACK_URL"] ?? string.Empty;
+        }
+    })
+    .Validate(options => !string.IsNullOrWhiteSpace(options.ClientId), "Discord ClientId is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.ClientSecret), "Discord ClientSecret is required.")
+    .Validate(options => Uri.TryCreate(options.CallbackUrl, UriKind.Absolute, out _), "Discord CallbackUrl must be absolute.")
+    .Validate(options => Uri.TryCreate(options.AuthorizationEndpoint, UriKind.Absolute, out _), "Discord AuthorizationEndpoint must be absolute.")
+    .Validate(options => Uri.TryCreate(options.TokenEndpoint, UriKind.Absolute, out _), "Discord TokenEndpoint must be absolute.")
+    .Validate(options => Uri.TryCreate(options.UserEndpoint, UriKind.Absolute, out _), "Discord UserEndpoint must be absolute.")
+    .ValidateOnStart();
+builder.Services.AddOptions<JwtOptions>()
+    .BindConfiguration(JwtOptions.SectionName)
+    .Validate(options => options.SigningKey.Length >= 64, "JWT SigningKey must have at least 64 characters.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer), "JWT Issuer is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Audience), "JWT Audience is required.")
+    .Validate(options => options.LifetimeHours > 0, "JWT LifetimeHours must be greater than zero.")
+    .ValidateOnStart();
+builder.Services.AddOptions<ApplicationUrlOptions>()
+    .BindConfiguration(ApplicationUrlOptions.SectionName)
+    .PostConfigure(options =>
+    {
+        if (string.IsNullOrWhiteSpace(options.FrontendUrl))
+        {
+            options.FrontendUrl = builder.Configuration["GIFJAM_FRONTEND_URL"] ?? string.Empty;
+        }
+    })
+    .Validate(options => Uri.TryCreate(options.FrontendUrl, UriKind.Absolute, out _), "FrontendUrl must be absolute.")
+    .ValidateOnStart();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer();
+builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<JwtOptions>>((bearerOptions, jwtOptions) =>
+    {
+        bearerOptions.TokenValidationParameters = JwtTokenService.CreateValidationParameters(jwtOptions.Value);
+        bearerOptions.Events = new()
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Path.StartsWithSegments("/hubs/game"))
+                {
+                    context.Token = context.Request.Query["access_token"];
+                }
+
+                return Task.CompletedTask;
+            }
+        };
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCors(options => options.AddPolicy("frontend", policy =>
+{
+    var configuredFrontendUrl = builder.Configuration["ApplicationUrls:FrontendUrl"];
+    var frontendUrl = string.IsNullOrWhiteSpace(configuredFrontendUrl)
+        ? builder.Configuration["GIFJAM_FRONTEND_URL"] ?? "http://localhost:4200"
+        : configuredFrontendUrl;
+    policy.WithOrigins(frontendUrl).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+}));
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter(AuthEndpoints.RateLimitPolicy, limiter =>
+    {
+        limiter.PermitLimit = 20;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
+});
+builder.Services.AddHttpClient<IDiscordClient, DiscordClient>(client =>
+    client.Timeout = TimeSpan.FromSeconds(5));
+builder.Services.AddScoped<AuthStateService>();
+builder.Services.AddScoped<JwtTokenService>();
+builder.Services.AddScoped<AuthService>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
@@ -69,6 +154,10 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("frontend");
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
@@ -84,6 +173,7 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 
 app.MapGet("/", () => Results.Ok(new { name = "GifJam API", status = "running" }))
     .ExcludeFromDescription();
+app.MapAuthEndpoints();
 
 app.Run();
 
