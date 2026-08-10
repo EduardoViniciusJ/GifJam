@@ -23,6 +23,10 @@ public sealed class GameConnectionRegistry
 
     internal ConnectionRegistration? Remove(string connectionId) =>
         connections.TryRemove(connectionId, out var registration) ? registration : null;
+
+    public bool HasActiveConnection(Guid userId, string gameCode) =>
+        connections.Values.Any(registration =>
+            registration.UserId == userId && registration.GameCodes.ContainsKey(gameCode));
 }
 
 internal sealed record ConnectionRegistration(
