@@ -5,7 +5,7 @@ import { SessionTokenService } from '@core/auth/session-token.service';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const token = inject(SessionTokenService).get();
-  const isApiRequest = request.url.startsWith('/api') || request.url.includes('/api/');
+  const isApiRequest = request.url.startsWith('/api/');
 
   if (!token || !isApiRequest) {
     return next(request);

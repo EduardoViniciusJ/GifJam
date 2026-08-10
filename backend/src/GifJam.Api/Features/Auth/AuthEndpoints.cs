@@ -1,4 +1,5 @@
 using GifJam.Api.Common.Auth;
+using GifJam.Api.Common.Errors;
 
 namespace GifJam.Api.Features.Auth;
 
@@ -30,8 +31,21 @@ public static class AuthEndpoints
                     return Results.Redirect(authService.CreateFrontendCallbackUri(returnUrl, error: "access_denied").ToString());
                 }
 
-                var result = await authService.CompleteDiscordLoginAsync(code ?? string.Empty, state, cancellationToken);
-                return Results.Redirect(authService.CreateFrontendCallbackUri(result.ReturnUrl, result.ExchangeCode).ToString());
+                var safeReturnUrl = authService.ReadReturnUrl(state);
+                try
+                {
+                    var result = await authService.CompleteDiscordLoginAsync(
+                        code ?? string.Empty,
+                        state,
+                        cancellationToken);
+                    return Results.Redirect(
+                        authService.CreateFrontendCallbackUri(result.ReturnUrl, result.ExchangeCode).ToString());
+                }
+                catch (ApiException exception) when (IsDiscordFailure(exception.Code))
+                {
+                    return Results.Redirect(
+                        authService.CreateFrontendCallbackUri(safeReturnUrl, error: exception.Code).ToString());
+                }
             })
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicy)
@@ -64,4 +78,9 @@ public static class AuthEndpoints
 
         return endpoints;
     }
+
+    private static bool IsDiscordFailure(string code) => code is
+        "discord_exchange_failed" or
+        "discord_identity_failed" or
+        "discord_invalid_response";
 }

@@ -1,3 +1,4 @@
+import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
@@ -8,7 +9,7 @@ describe('HomePage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [HomePage],
-      providers: [provideRouter([])],
+      providers: [provideHttpClient(), provideRouter([])],
     }).compileComponents();
   });
 
@@ -43,5 +44,18 @@ describe('HomePage', () => {
     fixture.componentInstance.joinRoom();
 
     expect(navigate).toHaveBeenCalledWith(['/sala', 'ABC12']);
+  });
+
+  it('keeps the home focused on playing and ranking', async () => {
+    const fixture = TestBed.createComponent(HomePage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain('Como jogar');
+    expect(text).toContain('Ranking');
+    expect(text).not.toContain('Segurança');
+    expect(text).not.toContain('Powered by KLIPY');
+    expect(fixture.nativeElement.querySelector('.hero__mascot')).toBeNull();
   });
 });

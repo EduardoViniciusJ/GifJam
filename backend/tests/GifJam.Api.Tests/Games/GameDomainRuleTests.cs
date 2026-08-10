@@ -31,7 +31,7 @@ public sealed class GameDomainRuleTests
         game.Players.Add(CreatePlayer(game, "first", 5, now));
         game.Players.Add(CreatePlayer(game, "second", 5, now.AddSeconds(1)));
         game.Players.Add(CreatePlayer(game, "third", 2, now.AddSeconds(2)));
-        var projector = new GameStateProjector(new TestClock(now), new SequentialRandomizer());
+        var projector = new GameStateProjector(new TestClock(now));
 
         var ranking = projector.CreateRankingSnapshot(game, isFinal: true);
 
