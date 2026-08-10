@@ -26,7 +26,7 @@ public sealed class GameCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task HostStartsReadyLobbyWithThirtySecondPhraseDeadline()
+    public async Task HostStartsReadyLobbyWithDefaultPhraseDeadline()
     {
         var setup = await CreateReadyGameAsync();
 
@@ -37,7 +37,7 @@ public sealed class GameCoordinatorTests : IDisposable
 
         Assert.NotNull(snapshot.Round);
         Assert.Equal(RoundPhase.PhraseSubmission, snapshot.Round.Phase);
-        Assert.Equal(factory.Clock.UtcNow.AddSeconds(30), snapshot.Round.PhaseEndsAt);
+        Assert.Equal(factory.Clock.UtcNow.AddSeconds(60), snapshot.Round.PhaseEndsAt);
         await using var context = database.CreateDbContext();
         var game = await context.Games.Include(savedGame => savedGame.Rounds).SingleAsync();
         Assert.Equal(GameStatus.InProgress, game.Status);
@@ -52,6 +52,43 @@ public sealed class GameCoordinatorTests : IDisposable
 
         var exception = await Assert.ThrowsAsync<ApiException>(() => WithCoordinatorAsync(coordinator =>
             coordinator.StartGameAsync(setup.Code, setup.Guest.Id, CancellationToken.None)));
+
+        Assert.Equal("host_required", exception.Code);
+    }
+
+    [Fact]
+    public async Task HostCanConfigureLobbyBeforeStarting()
+    {
+        var setup = await CreateReadyGameAsync();
+
+        var lobby = await WithGameServiceAsync(service => service.UpdateSettingsAsync(
+            setup.Code,
+            setup.Host.Id,
+            6,
+            90,
+            30,
+            CancellationToken.None));
+        var started = await StartGameAsync(setup);
+
+        Assert.Equal(6, lobby.TotalRounds);
+        Assert.Equal(90, lobby.PhraseSubmissionSeconds);
+        Assert.Equal(30, lobby.ResultsSeconds);
+        Assert.Equal(factory.Clock.UtcNow.AddSeconds(90), started.Round?.PhaseEndsAt);
+    }
+
+    [Fact]
+    public async Task GuestCannotConfigureLobby()
+    {
+        var setup = await CreateReadyGameAsync();
+
+        var exception = await Assert.ThrowsAsync<ApiException>(() => WithGameServiceAsync(service =>
+            service.UpdateSettingsAsync(
+                setup.Code,
+                setup.Guest.Id,
+                6,
+                90,
+                60,
+                CancellationToken.None)));
 
         Assert.Equal("host_required", exception.Code);
     }
@@ -129,7 +166,7 @@ public sealed class GameCoordinatorTests : IDisposable
             setup.Host.Id,
             "Only phrase",
             CancellationToken.None));
-        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(31);
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
 
         await WithCoordinatorAsync(async coordinator =>
         {
@@ -148,7 +185,7 @@ public sealed class GameCoordinatorTests : IDisposable
     {
         var setup = await CreateReadyGameAsync();
         await StartGameAsync(setup);
-        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(31);
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
 
         await WithCoordinatorAsync(async coordinator =>
         {
@@ -191,7 +228,7 @@ public sealed class GameCoordinatorTests : IDisposable
     {
         var setup = await CreateReadyGameAsync();
         await StartGameAsync(setup);
-        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(31);
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
 
         RoundPhase phase = RoundPhase.PhraseSubmission;
         for (var attempt = 0; attempt < 30 && phase == RoundPhase.PhraseSubmission; attempt++)

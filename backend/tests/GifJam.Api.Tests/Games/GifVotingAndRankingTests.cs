@@ -35,6 +35,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
         await SubmitBothGifsAsync(setup, 1);
 
         var gifIds = await LoadGifIdsAsync(1);
+        Guid[] publicGifOrder;
         await using (var context = database.CreateDbContext())
         {
             var round = await context.Rounds
@@ -45,6 +46,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
             var publicSnapshot = scope.ServiceProvider.GetRequiredService<GameStateProjector>()
                 .CreatePhaseSnapshot(round);
             var json = JsonSerializer.Serialize(publicSnapshot, JsonOptions);
+            publicGifOrder = [.. publicSnapshot.Gifs.Select(gif => gif.Id)];
             Assert.Equal(RoundPhase.GifVoting, publicSnapshot.Phase);
             Assert.Equal(2, publicSnapshot.Gifs.Count);
             Assert.DoesNotContain("userId", json, StringComparison.OrdinalIgnoreCase);
@@ -57,6 +59,17 @@ public sealed class GifVotingAndRankingTests : IDisposable
             setup.Host.Id,
             CancellationToken.None));
         Assert.Single(hostSnapshot.Round!.Gifs, gif => gif.IsOwn);
+        Assert.Equal(publicGifOrder, hostSnapshot.Round.Gifs.Select(gif => gif.Id));
+        var reconnectedSnapshot = await WithGameServiceAsync(service => service.GetAsync(
+            setup.Code,
+            setup.Host.Id,
+            CancellationToken.None));
+        Assert.Equal(publicGifOrder, reconnectedSnapshot.Round!.Gifs.Select(gif => gif.Id));
+
+        var earlyVote = await Assert.ThrowsAsync<ApiException>(() => WithCoordinatorAsync(coordinator =>
+            coordinator.VoteGifAsync(setup.Code, setup.Host.Id, gifIds[setup.Guest.Id], CancellationToken.None)));
+        Assert.Equal("gif_presentation_in_progress", earlyVote.Code);
+        await AdvancePastGifPresentationAsync(1);
 
         var selfVote = await Assert.ThrowsAsync<ApiException>(() => WithCoordinatorAsync(coordinator =>
             coordinator.VoteGifAsync(setup.Code, setup.Host.Id, gifIds[setup.Host.Id], CancellationToken.None)));
@@ -126,7 +139,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
         for (var roundNumber = 1; roundNumber <= 3; roundNumber++)
         {
             await PlayRoundAsync(setup, roundNumber);
-            factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(16);
+            factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
             await ProcessExpiredAsync();
         }
 
@@ -163,7 +176,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
         for (var roundNumber = 1; roundNumber <= 3; roundNumber++)
         {
             await PlayHomologationRoundAsync(setup, roundNumber);
-            factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(16);
+            factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
             await ProcessExpiredAsync();
         }
 
@@ -209,6 +222,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
 
         await SubmitGifAsync(setup.Code, setup.Guest, 1);
         var gifIds = await LoadGifIdsAsync(1);
+        await AdvancePastGifPresentationAsync(1);
         await Task.WhenAll(
             WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
                 setup.Code,
@@ -244,6 +258,43 @@ public sealed class GifVotingAndRankingTests : IDisposable
         Assert.Equal(RoundPhase.Results, (await context.Rounds.SingleAsync()).Phase);
         Assert.Equal(1, await context.GifVotes.CountAsync());
         Assert.Equal(1, await context.GamePlayers.SumAsync(player => player.Score));
+    }
+
+    [Fact]
+    public async Task ConnectedPlayersCanConfirmResultsAndAdvanceEarly()
+    {
+        var setup = await CreateReadyGameAsync();
+        await StartRoundAndSelectPhraseAsync(setup, 1);
+        await SubmitBothGifsAsync(setup, 1);
+        await AdvancePastGifPresentationAsync(1);
+        var gifIds = await LoadGifIdsAsync(1);
+        await WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
+            setup.Code,
+            setup.Host.Id,
+            gifIds[setup.Guest.Id],
+            CancellationToken.None));
+        await WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
+            setup.Code,
+            setup.Guest.Id,
+            gifIds[setup.Host.Id],
+            CancellationToken.None));
+
+        var hostReady = await WithCoordinatorAsync(coordinator => coordinator.SetResultsReadyAsync(
+            setup.Code,
+            setup.Host.Id,
+            CancellationToken.None));
+        var advanced = await WithCoordinatorAsync(coordinator => coordinator.SetResultsReadyAsync(
+            setup.Code,
+            setup.Guest.Id,
+            CancellationToken.None));
+
+        Assert.True(hostReady.Round?.HasConfirmedResults);
+        Assert.Equal(RoundPhase.PhraseSubmission, advanced.Round?.Phase);
+        Assert.Equal(2, advanced.Round?.RoundNumber);
+        await using var context = database.CreateDbContext();
+        var rounds = await context.Rounds.OrderBy(round => round.RoundNumber).ToArrayAsync();
+        Assert.Equal(RoundPhase.Completed, rounds[0].Phase);
+        Assert.Equal(RoundPhase.PhraseSubmission, rounds[1].Phase);
     }
 
     public void Dispose()
@@ -285,6 +336,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
             await SubmitGifAsync(setup.Code, player, roundNumber);
         }
 
+        await AdvancePastGifPresentationAsync(roundNumber);
         var gifIds = await LoadGifIdsAsync(roundNumber);
         for (var index = 0; index < setup.Players.Count; index++)
         {
@@ -302,6 +354,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
     {
         await SubmitPhrasesAndVotesAsync(setup, roundNumber);
         await SubmitBothGifsAsync(setup, roundNumber);
+        await AdvancePastGifPresentationAsync(roundNumber);
         var gifIds = await LoadGifIdsAsync(roundNumber);
         await WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
             setup.Code,
@@ -378,6 +431,17 @@ public sealed class GifVotingAndRankingTests : IDisposable
         return await context.GifSubmissions
             .Where(submission => submission.Round.RoundNumber == roundNumber)
             .ToDictionaryAsync(submission => submission.UserId, submission => submission.Id);
+    }
+
+    private async Task AdvancePastGifPresentationAsync(int roundNumber)
+    {
+        await using var context = database.CreateDbContext();
+        var presentationEndsAt = await context.Rounds
+            .Where(round => round.RoundNumber == roundNumber)
+            .Select(round => round.GifVotingPresentationEndsAt)
+            .SingleAsync();
+        factory.Clock.UtcNow = presentationEndsAt
+            ?? throw new InvalidOperationException("GIF presentation deadline was not configured.");
     }
 
     private async Task ProcessExpiredAsync()

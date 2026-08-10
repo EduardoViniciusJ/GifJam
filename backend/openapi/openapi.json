@@ -263,6 +263,96 @@
         }
       }
     },
+    "/api/games/{code}/settings": {
+      "put": {
+        "tags": [
+          "Games"
+        ],
+        "operationId": "UpdateGameSettings",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGameSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LobbySnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/games/{code}/leave": {
       "post": {
         "tags": [
@@ -553,6 +643,14 @@
           "totalRounds": {
             "type": "integer",
             "format": "int32"
+          },
+          "phraseSubmissionSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultsSeconds": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false
@@ -688,6 +786,14 @@
             "$ref": "#/components/schemas/GameStatus"
           },
           "totalRounds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "phraseSubmissionSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultsSeconds": {
             "type": "integer",
             "format": "int32"
           },
@@ -857,6 +963,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "gifVotingPresentationEndsAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
           "hasSubmittedPhrase": {
             "type": "boolean"
           },
@@ -867,6 +978,9 @@
             "type": "boolean"
           },
           "hasVotedGif": {
+            "type": "boolean"
+          },
+          "hasConfirmedResults": {
             "type": "boolean"
           },
           "phrases": {
@@ -1129,6 +1243,24 @@
           "text": {
             "type": "string",
             "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UpdateGameSettingsRequest": {
+        "type": "object",
+        "properties": {
+          "totalRounds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "phraseSubmissionSeconds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "resultsSeconds": {
+            "type": "integer",
+            "format": "int32"
           }
         },
         "additionalProperties": false

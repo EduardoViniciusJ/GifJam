@@ -12,7 +12,13 @@ public sealed class Game
 
     public GameStatus Status { get; set; } = GameStatus.Lobby;
 
+    public GameMode Mode { get; set; } = GameMode.Classic;
+
     public int TotalRounds { get; set; }
+
+    public int PhraseSubmissionSeconds { get; set; } = 60;
+
+    public int ResultsSeconds { get; set; } = 60;
 
     public int CurrentRoundNumber { get; set; }
 

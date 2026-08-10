@@ -2,6 +2,7 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Common.Errors;
 using GifJam.Api.Features.Games;
 using GifJam.Api.GameEngine;
+using GifJam.Api.Domain.Enums;
 using GifJam.Api.Realtime.Contracts;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
@@ -9,10 +10,11 @@ using Microsoft.AspNetCore.SignalR;
 namespace GifJam.Api.Realtime;
 
 [Authorize]
-public sealed class GameHub(
+public sealed partial class GameHub(
     GameService gameService,
     GameCoordinator gameCoordinator,
-    GameConnectionRegistry connectionRegistry) : Hub<IGameClient>
+    GameConnectionRegistry connectionRegistry,
+    ILogger<GameHub> logger) : Hub<IGameClient>
 {
     public async Task SubscribeGame(string gameCode)
     {
@@ -33,6 +35,24 @@ public sealed class GameHub(
     {
         var userId = Context.User!.GetRequiredUserId();
         await gameService.SetReadyAsync(gameCode, userId, isReady, Context.ConnectionAborted);
+    });
+
+    public Task UpdateGameSettings(
+        string gameCode,
+        int totalRounds,
+        int phraseSubmissionSeconds,
+        int resultsSeconds,
+        GameMode mode = GameMode.Classic) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameService.UpdateSettingsAsync(
+            gameCode,
+            userId,
+            totalRounds,
+            phraseSubmissionSeconds,
+            resultsSeconds,
+            mode,
+            Context.ConnectionAborted);
     });
 
     public Task RequestSync(string gameCode) => ExecuteCommandAsync(async () =>
@@ -72,6 +92,12 @@ public sealed class GameHub(
         await gameCoordinator.VoteGifAsync(gameCode, userId, gifSubmissionId, Context.ConnectionAborted);
     });
 
+    public Task SetResultsReady(string gameCode) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameCoordinator.SetResultsReadyAsync(gameCode, userId, Context.ConnectionAborted);
+    });
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var registration = connectionRegistry.Remove(Context.ConnectionId);
@@ -97,7 +123,42 @@ public sealed class GameHub(
         }
         catch (ApiException exception)
         {
-            await Clients.Caller.CommandRejected(new(exception.Code, exception.Message));
+            await Clients.Caller.CommandRejected(new(exception.Code, UserMessageFor(exception.Code)));
+        }
+        catch (OperationCanceledException) when (Context.ConnectionAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            LogUnexpectedCommandFailure(logger, exception, Context.ConnectionId);
+            await Clients.Caller.CommandRejected(new(
+                "unexpected_error",
+                "Não foi possível concluir a ação. Tente novamente."));
         }
     }
+
+    private static string UserMessageFor(string code) => code switch
+    {
+        "game_not_found" => "Esta sala não está disponível.",
+        "not_game_member" => "Você não faz parte desta sala.",
+        "host_required" => "Somente o host pode iniciar a partida.",
+        "lobby_not_ready" => "Todos os jogadores precisam estar prontos.",
+        "invalid_round_count" => "Escolha entre 3 e 6 rodadas.",
+        "invalid_phrase_duration" => "Escolha 30, 60 ou 90 segundos para a frase.",
+        "invalid_results_duration" => "Escolha 15, 30 ou 60 segundos para a revelação.",
+        "game_already_started" => "A partida já começou.",
+        "phase_expired" => "Essa etapa terminou. O jogo será sincronizado.",
+        "invalid_round_phase" => "Essa ação não está disponível agora.",
+        "self_vote_forbidden" => "Você não pode votar na própria resposta.",
+        "gif_presentation_in_progress" => "Aguarde todos os GIFs serem apresentados.",
+        _ => "Não foi possível concluir a ação. Tente novamente."
+    };
+    [LoggerMessage(
+        EventId = 2000,
+        Level = LogLevel.Error,
+        Message = "Unexpected game command failure for connection {ConnectionId}")]
+    private static partial void LogUnexpectedCommandFailure(
+        ILogger logger,
+        Exception exception,
+        string connectionId);
 }

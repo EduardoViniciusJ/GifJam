@@ -149,6 +149,8 @@ public sealed class GameHubTests(PostgresFixture database)
         var gifVoting = await ReadEventAsync(phases.Reader);
         Assert.Equal(RoundPhase.GifVoting, gifVoting.Phase);
         Assert.Equal(2, gifVoting.Gifs.Count);
+        factory.Clock.UtcNow = gifVoting.GifVotingPresentationEndsAt
+            ?? throw new InvalidOperationException("GIF presentation deadline was not configured.");
         await using (var gifContext = database.CreateDbContext())
         {
             var gifIds = await gifContext.GifSubmissions

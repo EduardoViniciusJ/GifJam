@@ -1,10 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using GifJam.Api.Common.Errors;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Features.Auth;
+using GifJam.Api.Integrations.Discord;
 using GifJam.Api.Tests.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 
@@ -90,6 +93,31 @@ public sealed class AuthEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task DiscordExchangeFailureReturnsToTheFrontendCallback()
+    {
+        await database.ResetAsync();
+        using var failingFactory = new DiscordAuthFactory(
+            database,
+            discordClient: new FailingDiscordClient());
+        using var failingClient = failingFactory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new("https://api.test")
+        });
+
+        using var start = await failingClient.GetAsync(
+            "/api/auth/discord/start?returnUrl=%2Fsala%2Fnova");
+        var state = Assert.Single(QueryHelpers.ParseQuery(start.Headers.Location!.Query)["state"]);
+        using var callback = await failingClient.GetAsync(
+            $"/api/auth/discord/callback?code=expired-code&state={Uri.EscapeDataString(state!)}");
+
+        Assert.Equal(HttpStatusCode.Redirect, callback.StatusCode);
+        var callbackQuery = QueryHelpers.ParseQuery(callback.Headers.Location!.Query);
+        Assert.Equal("discord_exchange_failed", Assert.Single(callbackQuery["error"]));
+        Assert.Equal("/sala/nova", Assert.Single(callbackQuery["returnUrl"]));
+    }
+
+    [Fact]
     public async Task ExpiredExchangeCodeIsRejected()
     {
         await database.ResetAsync();
@@ -164,5 +192,16 @@ public sealed class AuthEndpointTests : IDisposable
         var query = QueryHelpers.ParseQuery(response.Headers.Location!.Query);
         return Assert.Single(query["state"])
             ?? throw new InvalidOperationException("OAuth state was missing.");
+    }
+
+    private sealed class FailingDiscordClient : IDiscordClient
+    {
+        public Task<DiscordIdentity> GetIdentityAsync(
+            string authorizationCode,
+            CancellationToken cancellationToken) =>
+            throw new ApiException(
+                "discord_exchange_failed",
+                "Discord authentication could not be completed.",
+                StatusCodes.Status502BadGateway);
     }
 }

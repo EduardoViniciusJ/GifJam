@@ -8,6 +8,8 @@ public sealed class GamePlayer
 
     public int Score { get; set; }
 
+    public int ResultReadyRoundNumber { get; set; }
+
     public bool IsReady { get; set; }
 
     public bool IsConnected { get; set; }

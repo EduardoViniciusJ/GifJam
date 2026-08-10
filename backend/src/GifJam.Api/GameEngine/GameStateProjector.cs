@@ -1,12 +1,12 @@
-using GifJam.Api.Common.Random;
 using GifJam.Api.Common.Time;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Domain.Enums;
 using GifJam.Api.Features.Games;
+using System.Security.Cryptography;
 
 namespace GifJam.Api.GameEngine;
 
-public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
+public sealed class GameStateProjector(IClock clock)
 {
     public PlayerGameSnapshot CreatePlayerSnapshot(Game game, Guid userId)
     {
@@ -34,7 +34,10 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
         return new(
             game.Code,
             game.Status,
+            game.Mode,
             game.TotalRounds,
+            game.PhraseSubmissionSeconds,
+            game.ResultsSeconds,
             game.CurrentRoundNumber,
             game.HostUserId,
             canStart,
@@ -53,15 +56,22 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
     public RoundPhaseSnapshot CreatePhaseSnapshot(Round round)
     {
         var phrases = ShouldProjectPhrases(round.Phase)
-            ? Shuffle(round.Phrases.Select(phrase => new AnonymousPhraseSnapshot(phrase.Id, phrase.Text)))
+            ? OrderForRound(
+                round.Id,
+                round.Phrases.Select(phrase => new AnonymousPhraseSnapshot(phrase.Id, phrase.Text)),
+                phrase => phrase.Id)
             : [];
         var gifs = ShouldProjectGifs(round.Phase)
-            ? Shuffle(round.GifSubmissions.Select(CreateAnonymousGifSnapshot))
+            ? OrderForRound(
+                round.Id,
+                round.GifSubmissions.Select(CreateAnonymousGifSnapshot),
+                gif => gif.Id)
             : [];
         return new(
             round.RoundNumber,
             round.Phase,
             round.PhaseEndsAt,
+            round.Phase == RoundPhase.GifVoting ? round.GifVotingPresentationEndsAt : null,
             phrases,
             gifs,
             CreateSelectedPhrase(round),
@@ -71,27 +81,34 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
     private PlayerRoundSnapshot CreatePlayerRoundSnapshot(Round round, Guid userId)
     {
         var phrases = ShouldProjectPhrases(round.Phase)
-            ? Shuffle(round.Phrases.Select(phrase => new PlayerPhraseSnapshot(
-                phrase.Id,
-                phrase.Text,
-                phrase.UserId == userId)))
+            ? OrderForRound(
+                round.Id,
+                round.Phrases.Select(phrase => new PlayerPhraseSnapshot(
+                    phrase.Id,
+                    phrase.Text,
+                    phrase.UserId == userId)),
+                phrase => phrase.Id)
             : [];
         var gifs = ShouldProjectGifs(round.Phase)
-            ? Shuffle(round.GifSubmissions.Select(submission => new PlayerGifSnapshot(
-                submission.Id,
-                submission.Description,
-                submission.PreviewUrl,
-                submission.MediaUrl,
-                submission.Width,
-                submission.Height,
-                submission.PreviewWidth,
-                submission.PreviewHeight,
-                submission.SourceUrl,
-                submission.Attribution,
-                submission.UserId == userId)))
+            ? OrderForRound(
+                round.Id,
+                round.GifSubmissions.Select(submission => new PlayerGifSnapshot(
+                    submission.Id,
+                    submission.Description,
+                    submission.PreviewUrl,
+                    submission.MediaUrl,
+                    submission.Width,
+                    submission.Height,
+                    submission.PreviewWidth,
+                    submission.PreviewHeight,
+                    submission.SourceUrl,
+                    submission.Attribution,
+                    submission.UserId == userId)),
+                gif => gif.Id)
             : [];
         var gifSelection = round.GifSubmissions.SingleOrDefault(submission => submission.UserId == userId);
         var game = round.Game;
+        var player = game.Players.Single(savedPlayer => savedPlayer.UserId == userId);
         var reveal = round.Phase is RoundPhase.Results or RoundPhase.Completed
             ? CreateRoundRevealSnapshot(round)
             : null;
@@ -102,10 +119,12 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
             round.RoundNumber,
             round.Phase,
             round.PhaseEndsAt,
+            round.Phase == RoundPhase.GifVoting ? round.GifVotingPresentationEndsAt : null,
             round.Phrases.Any(phrase => phrase.UserId == userId),
             round.PhraseVotes.Any(vote => vote.UserId == userId),
             gifSelection is not null,
             round.GifVotes.Any(vote => vote.UserId == userId),
+            player.ResultReadyRoundNumber == round.RoundNumber,
             phrases,
             gifs,
             CreateSelectedPhrase(round),
@@ -155,7 +174,10 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
             phrase = new(
                 round.SelectedPhrase.Id,
                 round.SelectedPhrase.Text,
-                CreateRevealedPlayer(round.SelectedPhrase.User));
+                round.SelectedPhrase.Source,
+                round.SelectedPhrase.User is null
+                    ? null
+                    : CreateRevealedPlayer(round.SelectedPhrase.User));
         }
 
         return new(round.RoundNumber, phrase, gifs, clock.UtcNow);
@@ -231,11 +253,15 @@ public sealed class GameStateProjector(IClock clock, IRandomizer randomizer)
         return positions;
     }
 
-    private T[] Shuffle<T>(IEnumerable<T> source)
+    private static T[] OrderForRound<T>(Guid roundId, IEnumerable<T> source, Func<T, Guid> idSelector) =>
+        [.. source.OrderBy(item => CreateOrderKey(roundId, idSelector(item)), StringComparer.Ordinal)];
+
+    private static string CreateOrderKey(Guid roundId, Guid itemId)
     {
-        var items = source.ToList();
-        randomizer.Shuffle(items);
-        return [.. items];
+        Span<byte> input = stackalloc byte[32];
+        roundId.TryWriteBytes(input[..16]);
+        itemId.TryWriteBytes(input[16..]);
+        return Convert.ToHexString(SHA256.HashData(input));
     }
 
     private static bool ShouldProjectPhrases(RoundPhase phase) => phase == RoundPhase.PhraseVoting;

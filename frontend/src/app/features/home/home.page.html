@@ -11,28 +11,28 @@
         <ng-icon name="lucideTrophy" aria-hidden="true" />
         Ranking
       </a>
-      <a href="#seguranca">
-        <ng-icon name="lucideShieldCheck" aria-hidden="true" />
-        Segurança
-      </a>
     </nav>
 
-    <button class="button button--header" type="button" (click)="login()">
-      <ng-icon name="lucideLogIn" aria-hidden="true" />
-      <span>Entrar com Discord</span>
-    </button>
+    @if (isAuthenticated()) {
+      <button class="session-profile" type="button" title="Sair" (click)="logout()">
+        @if (user()?.avatarUrl; as avatarUrl) {
+          <img [src]="avatarUrl" width="36" height="36" alt="" />
+        } @else {
+          <span class="avatar-fallback">{{ user()?.displayName?.charAt(0) ?? 'G' }}</span>
+        }
+        <span>{{ user()?.displayName ?? 'Conta conectada' }}</span>
+        <ng-icon name="lucideLogOut" aria-hidden="true" />
+      </button>
+    } @else {
+      <button class="button button--header" type="button" (click)="login()">
+        <ng-icon name="lucideLogIn" aria-hidden="true" />
+        <span>Entrar com Discord</span>
+      </button>
+    }
   </header>
 
   <main>
     <section class="hero" aria-labelledby="hero-title">
-      <img
-        class="hero__mascot"
-        src="/brand/gifjam-mascot.webp"
-        width="768"
-        height="768"
-        alt="Personagem amarelo do GifJam pensando"
-      />
-
       <div class="hero__content">
         <p class="eyebrow">PARTY GAME ONLINE</p>
         <h1 id="hero-title"><span>Gif</span><strong>Jam</strong></h1>
@@ -75,10 +75,12 @@
           </form>
         </div>
 
-        <button class="button button--discord button--large" type="button" (click)="login()">
-          <ng-icon name="lucideLogIn" aria-hidden="true" />
-          Entrar com Discord
-        </button>
+        @if (!isAuthenticated()) {
+          <button class="button button--discord button--large" type="button" (click)="login()">
+            <ng-icon name="lucideLogIn" aria-hidden="true" />
+            Entrar com Discord
+          </button>
+        }
       </div>
     </section>
 
@@ -111,16 +113,5 @@
         </li>
       </ol>
     </section>
-
-    <section id="seguranca" class="trust-strip" aria-label="Privacidade e segurança">
-      <ng-icon name="lucideShieldCheck" aria-hidden="true" />
-      <p>Sua chave KLIPY e seus dados de autenticação ficam protegidos no backend.</p>
-    </section>
   </main>
-
-  <footer class="site-footer">
-    <app-brand />
-    <p>Powered by KLIPY</p>
-    <p>GifJam é independente e não é afiliado ao Discord ou à KLIPY.</p>
-  </footer>
 </div>

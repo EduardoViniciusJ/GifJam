@@ -16,7 +16,7 @@ public sealed partial class GlobalExceptionHandler(
         var apiException = exception as ApiException;
         var statusCode = apiException?.StatusCode ?? StatusCodes.Status500InternalServerError;
         var code = apiException?.Code ?? "internal_error";
-        var detail = apiException?.Message ?? "An unexpected error occurred.";
+        const string detail = "The request could not be completed.";
 
         var traceId = TraceContext.GetTraceId(httpContext);
         if (apiException is null)

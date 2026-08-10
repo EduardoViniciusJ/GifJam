@@ -16,6 +16,8 @@ public sealed class Round
 
     public DateTimeOffset PhaseEndsAt { get; set; }
 
+    public DateTimeOffset? GifVotingPresentationEndsAt { get; set; }
+
     public DateTimeOffset StartedAt { get; set; }
 
     public DateTimeOffset? FinishedAt { get; set; }

@@ -2,7 +2,17 @@ using GifJam.Api.Domain.Enums;
 
 namespace GifJam.Api.Features.Games;
 
-public sealed record CreateGameRequest(int TotalRounds);
+public sealed record CreateGameRequest(
+    int TotalRounds,
+    int PhraseSubmissionSeconds = 60,
+    int ResultsSeconds = 60,
+    GameMode Mode = GameMode.Classic);
+
+public sealed record UpdateGameSettingsRequest(
+    int TotalRounds,
+    int PhraseSubmissionSeconds,
+    int ResultsSeconds,
+    GameMode Mode = GameMode.Classic);
 
 public sealed record LobbyPlayerSnapshot(
     Guid UserId,
@@ -17,7 +27,10 @@ public sealed record LobbyPlayerSnapshot(
 public sealed record LobbySnapshot(
     string Code,
     GameStatus Status,
+    GameMode Mode,
     int TotalRounds,
+    int PhraseSubmissionSeconds,
+    int ResultsSeconds,
     int CurrentRoundNumber,
     Guid HostUserId,
     bool CanStart,
@@ -88,7 +101,8 @@ public sealed record RevealedPlayerSnapshot(
 public sealed record RevealedPhraseSnapshot(
     Guid Id,
     string Text,
-    RevealedPlayerSnapshot Author);
+    PhraseSource Source,
+    RevealedPlayerSnapshot? Author);
 
 public sealed record RevealedGifSnapshot(
     Guid Id,
@@ -136,6 +150,7 @@ public sealed record RoundPhaseSnapshot(
     int RoundNumber,
     RoundPhase Phase,
     DateTimeOffset PhaseEndsAt,
+    DateTimeOffset? GifVotingPresentationEndsAt,
     IReadOnlyList<AnonymousPhraseSnapshot> Phrases,
     IReadOnlyList<AnonymousGifSnapshot> Gifs,
     SelectedPhraseSnapshot? SelectedPhrase,
@@ -145,10 +160,12 @@ public sealed record PlayerRoundSnapshot(
     int RoundNumber,
     RoundPhase Phase,
     DateTimeOffset PhaseEndsAt,
+    DateTimeOffset? GifVotingPresentationEndsAt,
     bool HasSubmittedPhrase,
     bool HasVotedPhrase,
     bool HasSubmittedGif,
     bool HasVotedGif,
+    bool HasConfirmedResults,
     IReadOnlyList<PlayerPhraseSnapshot> Phrases,
     IReadOnlyList<PlayerGifSnapshot> Gifs,
     SelectedPhraseSnapshot? SelectedPhrase,

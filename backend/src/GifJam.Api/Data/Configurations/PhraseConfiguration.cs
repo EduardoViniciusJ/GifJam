@@ -12,6 +12,7 @@ public sealed class PhraseConfiguration : IEntityTypeConfiguration<Phrase>
         builder.HasKey(phrase => phrase.Id);
         builder.HasIndex(phrase => new { phrase.RoundId, phrase.UserId }).IsUnique();
         builder.Property(phrase => phrase.Text).HasMaxLength(180).IsRequired();
+        builder.Property(phrase => phrase.Source).HasConversion<string>().HasMaxLength(16);
         builder.HasOne(phrase => phrase.Round)
             .WithMany(round => round.Phrases)
             .HasForeignKey(phrase => phrase.RoundId)

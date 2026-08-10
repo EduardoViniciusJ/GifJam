@@ -21,7 +21,10 @@ public static class GameEndpoints
                 var snapshot = await gameService.CreateAsync(
                     context.User.GetRequiredUserId(),
                     request.TotalRounds,
-                    cancellationToken);
+                    cancellationToken,
+                    request.PhraseSubmissionSeconds,
+                    request.ResultsSeconds,
+                    request.Mode);
                 return Results.Created($"/api/games/{snapshot.Lobby.Code}", snapshot);
             })
             .RequireRateLimiting(WriteRateLimitPolicy)
@@ -46,6 +49,29 @@ public static class GameEndpoints
             .ProducesProblem(StatusCodes.Status404NotFound)
             .ProducesProblem(StatusCodes.Status409Conflict)
             .WithName("JoinGame");
+
+        group.MapPut("/{code}/settings", async (
+                string code,
+                UpdateGameSettingsRequest request,
+                HttpContext context,
+                GameService gameService,
+                CancellationToken cancellationToken) =>
+                Results.Ok(await gameService.UpdateSettingsAsync(
+                    code,
+                    context.User.GetRequiredUserId(),
+                    request.TotalRounds,
+                    request.PhraseSubmissionSeconds,
+                    request.ResultsSeconds,
+                    request.Mode,
+                    cancellationToken)))
+            .RequireRateLimiting(WriteRateLimitPolicy)
+            .Produces<LobbySnapshot>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status401Unauthorized)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .WithName("UpdateGameSettings");
 
         group.MapPost("/{code}/leave", async (
                 string code,

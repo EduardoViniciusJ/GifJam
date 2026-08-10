@@ -21,10 +21,10 @@ public sealed class GameCoordinator(
     GifSelectionTokenService gifSelectionTokenService,
     GameTelemetry gameTelemetry)
 {
-    private static readonly TimeSpan PhraseSubmissionDuration = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan PhraseVotingDuration = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan GifSubmissionDuration = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan ResultsDuration = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan GifPresentationDurationPerItem = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan GifVotingSelectionDuration = TimeSpan.FromSeconds(20);
 
     public async Task<PlayerGameSnapshot> StartGameAsync(
         string gameCode,
@@ -61,7 +61,7 @@ public sealed class GameCoordinator(
             Game = game,
             RoundNumber = 1,
             Phase = RoundPhase.PhraseSubmission,
-            PhaseEndsAt = now.Add(PhraseSubmissionDuration),
+            PhaseEndsAt = now.AddSeconds(game.PhraseSubmissionSeconds),
             StartedAt = now
         };
         game.Status = GameStatus.InProgress;
@@ -294,6 +294,13 @@ public sealed class GameCoordinator(
         var round = GetCurrentRound(game);
         EnsurePhase(round, RoundPhase.GifVoting);
         EnsureBeforeDeadline(round);
+        if (round.GifVotingPresentationEndsAt > clock.UtcNow)
+        {
+            throw new ApiException(
+                "gif_presentation_in_progress",
+                "GIF voting opens after every submission has been presented.",
+                StatusCodes.Status409Conflict);
+        }
 
         var submission = round.GifSubmissions.SingleOrDefault(saved => saved.Id == gifSubmissionId)
             ?? throw new ApiException("gif_not_found", "The GIF was not found in this round.", StatusCodes.Status404NotFound);
@@ -341,6 +348,42 @@ public sealed class GameCoordinator(
         if (phaseChanged)
         {
             await PublishTransitionAsync(game, round);
+        }
+
+        return stateProjector.CreatePlayerSnapshot(game, userId);
+    }
+
+    public async Task<PlayerGameSnapshot> SetResultsReadyAsync(
+        string gameCode,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var gameId = await FindGameIdAsync(gameCode, cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        var player = EnsureMember(game, userId);
+        var round = GetCurrentRound(game);
+        EnsurePhase(round, RoundPhase.Results);
+        EnsureBeforeDeadline(round);
+
+        if (player.ResultReadyRoundNumber == round.RoundNumber)
+        {
+            return stateProjector.CreatePlayerSnapshot(game, userId);
+        }
+
+        player.ResultReadyRoundNumber = round.RoundNumber;
+        var progress = GetResultsReadyProgress(game, round);
+        var phaseChanged = progress.Eligible > 0 && progress.Completed >= progress.Eligible;
+        var phaseToPublish = phaseChanged ? CompleteResults(game, round) : round;
+
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
+        if (phaseChanged)
+        {
+            await PublishTransitionAsync(game, phaseToPublish);
         }
 
         return stateProjector.CreatePlayerSnapshot(game, userId);
@@ -425,7 +468,7 @@ public sealed class GameCoordinator(
         {
             case 0:
                 round.Phase = RoundPhase.Results;
-                round.PhaseEndsAt = clock.UtcNow.Add(ResultsDuration);
+                round.PhaseEndsAt = clock.UtcNow.AddSeconds(round.Game.ResultsSeconds);
                 break;
             case 1:
                 var phrase = round.Phrases.Single();
@@ -446,7 +489,7 @@ public sealed class GameCoordinator(
         if (round.Phrases.Count == 0)
         {
             round.Phase = RoundPhase.Results;
-            round.PhaseEndsAt = clock.UtcNow.Add(ResultsDuration);
+            round.PhaseEndsAt = clock.UtcNow.AddSeconds(round.Game.ResultsSeconds);
             return;
         }
 
@@ -474,7 +517,9 @@ public sealed class GameCoordinator(
         }
 
         round.Phase = RoundPhase.GifVoting;
-        round.PhaseEndsAt = clock.UtcNow.Add(PhraseVotingDuration);
+        round.GifVotingPresentationEndsAt = clock.UtcNow.Add(
+            TimeSpan.FromTicks(GifPresentationDurationPerItem.Ticks * round.GifSubmissions.Count));
+        round.PhaseEndsAt = round.GifVotingPresentationEndsAt.Value.Add(GifVotingSelectionDuration);
     }
 
     private void CompleteGifVoting(Game game, Round round)
@@ -491,7 +536,7 @@ public sealed class GameCoordinator(
         }
 
         round.Phase = RoundPhase.Results;
-        round.PhaseEndsAt = clock.UtcNow.Add(ResultsDuration);
+        round.PhaseEndsAt = clock.UtcNow.AddSeconds(game.ResultsSeconds);
     }
 
     private Round CompleteResults(Game game, Round round)
@@ -512,7 +557,7 @@ public sealed class GameCoordinator(
             Game = game,
             RoundNumber = game.CurrentRoundNumber,
             Phase = RoundPhase.PhraseSubmission,
-            PhaseEndsAt = clock.UtcNow.Add(PhraseSubmissionDuration),
+            PhaseEndsAt = clock.UtcNow.AddSeconds(game.PhraseSubmissionSeconds),
             StartedAt = clock.UtcNow
         };
         dbContext.Rounds.Add(nextRound);
@@ -537,6 +582,16 @@ public sealed class GameCoordinator(
             .Select(player => player.UserId)
             .ToArray();
         var completed = eligiblePlayers.Count(playerId => round.GifVotes.Any(vote => vote.UserId == playerId));
+        return new(completed, eligiblePlayers.Length, clock.UtcNow);
+    }
+
+    private SubmissionProgressSnapshot GetResultsReadyProgress(Game game, Round round)
+    {
+        var eligiblePlayers = game.Players
+            .Where(player => player.IsConnected)
+            .ToArray();
+        var completed = eligiblePlayers.Count(
+            player => player.ResultReadyRoundNumber == round.RoundNumber);
         return new(completed, eligiblePlayers.Length, clock.UtcNow);
     }
 

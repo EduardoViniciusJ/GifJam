@@ -23,12 +23,12 @@ public sealed class GameService(
     public async Task<PlayerGameSnapshot> CreateAsync(
         Guid userId,
         int totalRounds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int phraseSubmissionSeconds = 60,
+        int resultsSeconds = 60,
+        GameMode mode = GameMode.Classic)
     {
-        if (totalRounds is < 3 or > 6)
-        {
-            throw new ApiException("invalid_round_count", "Total rounds must be between 3 and 6.", StatusCodes.Status400BadRequest);
-        }
+        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds);
 
         var userExists = await dbContext.Users.AnyAsync(user => user.Id == userId, cancellationToken);
         if (!userExists)
@@ -42,7 +42,10 @@ public sealed class GameService(
         {
             Code = code,
             HostUserId = userId,
+            Mode = mode,
             TotalRounds = totalRounds,
+            PhraseSubmissionSeconds = phraseSubmissionSeconds,
+            ResultsSeconds = resultsSeconds,
             CreatedAt = now
         };
         game.Players.Add(new()
@@ -233,6 +236,46 @@ public sealed class GameService(
         return lobby;
     }
 
+    public async Task<LobbySnapshot> UpdateSettingsAsync(
+        string code,
+        Guid userId,
+        int totalRounds,
+        int phraseSubmissionSeconds,
+        int resultsSeconds,
+        GameMode mode,
+        CancellationToken cancellationToken)
+    {
+        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds);
+        var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        if (game.HostUserId != userId)
+        {
+            throw new ApiException(
+                "host_required",
+                "Only the host can change the game settings.",
+                StatusCodes.Status403Forbidden);
+        }
+
+        if (game.Status != GameStatus.Lobby)
+        {
+            throw new ApiException(
+                "game_not_in_lobby",
+                "Game settings can only change in the lobby.",
+                StatusCodes.Status409Conflict);
+        }
+
+        game.TotalRounds = totalRounds;
+        game.PhraseSubmissionSeconds = phraseSubmissionSeconds;
+        game.ResultsSeconds = resultsSeconds;
+        game.Mode = mode;
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
+        await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        return lobby;
+    }
+
     private async Task<Guid> FindGameIdAsync(string code, CancellationToken cancellationToken)
     {
         var gameId = await dbContext.Games.AsNoTracking()
@@ -294,6 +337,36 @@ public sealed class GameService(
     }
 
     private static string NormalizeCode(string code) => code.Trim().ToUpperInvariant();
+
+    private static void ValidateSettings(
+        int totalRounds,
+        int phraseSubmissionSeconds,
+        int resultsSeconds)
+    {
+        if (totalRounds is < 3 or > 6)
+        {
+            throw new ApiException(
+                "invalid_round_count",
+                "Total rounds must be between 3 and 6.",
+                StatusCodes.Status400BadRequest);
+        }
+
+        if (phraseSubmissionSeconds is not (30 or 60 or 90))
+        {
+            throw new ApiException(
+                "invalid_phrase_duration",
+                "Phrase duration must be 30, 60 or 90 seconds.",
+                StatusCodes.Status400BadRequest);
+        }
+
+        if (resultsSeconds is not (15 or 30 or 60))
+        {
+            throw new ApiException(
+                "invalid_results_duration",
+                "Results duration must be 15, 30 or 60 seconds.",
+                StatusCodes.Status400BadRequest);
+        }
+    }
 
     private static ApiException GameNotFound() =>
         new("game_not_found", "The game was not found.", StatusCodes.Status404NotFound);

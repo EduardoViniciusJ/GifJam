@@ -16,7 +16,8 @@ namespace GifJam.Api.Tests.Auth;
 
 public sealed class DiscordAuthFactory(
     PostgresFixture database,
-    IGifProvider? gifProvider = null) : WebApplicationFactory<Program>
+    IGifProvider? gifProvider = null,
+    IDiscordClient? discordClient = null) : WebApplicationFactory<Program>
 {
     public TestClock Clock { get; } = new(DateTimeOffset.UtcNow);
 
@@ -49,7 +50,7 @@ public sealed class DiscordAuthFactory(
             services.AddDbContext<AppDbContext>(options => options.UseNpgsql(database.ConnectionString));
 
             services.RemoveAll<IDiscordClient>();
-            services.AddSingleton<IDiscordClient>(new FakeDiscordClient());
+            services.AddSingleton(discordClient ?? new FakeDiscordClient());
             services.RemoveAll<IGifProvider>();
             services.AddSingleton(gifProvider ?? new FakeGifProvider());
             services.RemoveAll<IClock>();
