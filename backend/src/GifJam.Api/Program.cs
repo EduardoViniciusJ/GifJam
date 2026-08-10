@@ -6,7 +6,10 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
 using GifJam.Api.Data.Cleanup;
 using GifJam.Api.Features.Auth;
+using GifJam.Api.Features.Games;
+using GifJam.Api.GameEngine;
 using GifJam.Api.Integrations.Discord;
+using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
@@ -14,6 +17,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +36,10 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddDataProtection();
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
@@ -116,12 +124,23 @@ builder.Services.AddRateLimiter(options =>
         limiter.Window = TimeSpan.FromMinutes(1);
         limiter.QueueLimit = 0;
     });
+    options.AddFixedWindowLimiter(GameEndpoints.WriteRateLimitPolicy, limiter =>
+    {
+        limiter.PermitLimit = 30;
+        limiter.Window = TimeSpan.FromMinutes(1);
+        limiter.QueueLimit = 0;
+    });
 });
 builder.Services.AddHttpClient<IDiscordClient, DiscordClient>(client =>
     client.Timeout = TimeSpan.FromSeconds(5));
 builder.Services.AddScoped<AuthStateService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddSingleton<IGameCodeGenerator, GameCodeGenerator>();
+builder.Services.AddSingleton<IGameLockManager, GameLockManager>();
+builder.Services.AddSingleton<GameConnectionRegistry>();
+builder.Services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
+builder.Services.AddScoped<GameService>();
 builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])
     .AddCheck<PostgresHealthCheck>("postgres", tags: ["ready"]);
@@ -174,6 +193,8 @@ app.MapHealthChecks("/health/ready", new HealthCheckOptions
 app.MapGet("/", () => Results.Ok(new { name = "GifJam API", status = "running" }))
     .ExcludeFromDescription();
 app.MapAuthEndpoints();
+app.MapGameEndpoints();
+app.MapHub<GameHub>("/hubs/game");
 
 app.Run();
 

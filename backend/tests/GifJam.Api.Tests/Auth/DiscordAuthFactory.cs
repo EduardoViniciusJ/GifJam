@@ -1,5 +1,7 @@
 using GifJam.Api.Common.Time;
+using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
+using GifJam.Api.Domain.Entities;
 using GifJam.Api.Integrations.Discord;
 using GifJam.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
@@ -14,6 +16,12 @@ namespace GifJam.Api.Tests.Auth;
 public sealed class DiscordAuthFactory(PostgresFixture database) : WebApplicationFactory<Program>
 {
     public TestClock Clock { get; } = new(DateTimeOffset.UtcNow);
+
+    public string CreateAccessToken(User user)
+    {
+        using var scope = Services.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<JwtTokenService>().Create(user).AccessToken;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
