@@ -1,0 +1,126 @@
+<div class="home-shell">
+  <header class="site-header">
+    <app-brand tone="dark" />
+
+    <nav class="site-nav" aria-label="Navegação principal">
+      <a href="#como-jogar">
+        <ng-icon name="lucideMessageSquare" aria-hidden="true" />
+        Como jogar
+      </a>
+      <a routerLink="/ranking">
+        <ng-icon name="lucideTrophy" aria-hidden="true" />
+        Ranking
+      </a>
+      <a href="#seguranca">
+        <ng-icon name="lucideShieldCheck" aria-hidden="true" />
+        Segurança
+      </a>
+    </nav>
+
+    <button class="button button--header" type="button" (click)="login()">
+      <ng-icon name="lucideLogIn" aria-hidden="true" />
+      <span>Entrar com Discord</span>
+    </button>
+  </header>
+
+  <main>
+    <section class="hero" aria-labelledby="hero-title">
+      <img
+        class="hero__mascot"
+        src="/brand/gifjam-mascot.webp"
+        width="768"
+        height="768"
+        alt="Personagem amarelo do GifJam pensando"
+      />
+
+      <div class="hero__content">
+        <p class="eyebrow">PARTY GAME ONLINE</p>
+        <h1 id="hero-title"><span>Gif</span><strong>Jam</strong></h1>
+        <p class="hero__tagline">A frase certa. O GIF perfeito.</p>
+
+        <div class="hero__actions">
+          <button class="button button--primary button--large" type="button" (click)="createRoom()">
+            <ng-icon name="lucideUsers" aria-hidden="true" />
+            Criar sala
+          </button>
+
+          <span class="hero__or" aria-hidden="true">ou</span>
+
+          <form class="room-code" (ngSubmit)="joinRoom()">
+            <label for="room-code">Entrar com código</label>
+            <div class="room-code__control">
+              <input
+                id="room-code"
+                type="text"
+                inputmode="text"
+                autocomplete="off"
+                maxlength="5"
+                placeholder="ABCD1"
+                [formControl]="roomCode"
+                (input)="normalizeCode($event)"
+                aria-describedby="room-code-error"
+              />
+              <button
+                type="button"
+                aria-label="Entrar na sala"
+                title="Entrar na sala"
+                (click)="joinRoom()"
+              >
+                <ng-icon name="lucideArrowRight" aria-hidden="true" />
+              </button>
+            </div>
+            @if (roomCode.invalid && roomCode.touched) {
+              <span id="room-code-error" class="field-error">Digite os 5 caracteres da sala.</span>
+            }
+          </form>
+        </div>
+
+        <button class="button button--discord button--large" type="button" (click)="login()">
+          <ng-icon name="lucideLogIn" aria-hidden="true" />
+          Entrar com Discord
+        </button>
+      </div>
+    </section>
+
+    <section id="como-jogar" class="round-flow" aria-labelledby="round-flow-title">
+      <div class="section-heading">
+        <p class="eyebrow eyebrow--dark">UMA RODADA, QUATRO MOMENTOS</p>
+        <h2 id="round-flow-title">Do improviso ao GIF vencedor</h2>
+      </div>
+
+      <ol class="round-flow__steps">
+        <li>
+          <span class="step-number">1</span>
+          <span class="step-icon"><ng-icon name="lucideMessageSquare" aria-hidden="true" /></span>
+          <strong>Frase</strong>
+        </li>
+        <li>
+          <span class="step-number">2</span>
+          <span class="step-icon"><ng-icon name="lucideSmile" aria-hidden="true" /></span>
+          <strong>GIF</strong>
+        </li>
+        <li>
+          <span class="step-number">3</span>
+          <span class="step-icon"><ng-icon name="lucideVote" aria-hidden="true" /></span>
+          <strong>Voto</strong>
+        </li>
+        <li>
+          <span class="step-number">4</span>
+          <span class="step-icon"><ng-icon name="lucideCrown" aria-hidden="true" /></span>
+          <strong>Revelação</strong>
+        </li>
+      </ol>
+    </section>
+
+    <section id="seguranca" class="trust-strip" aria-label="Privacidade e segurança">
+      <ng-icon name="lucideShieldCheck" aria-hidden="true" />
+      <p>Sua chave KLIPY e seus dados de autenticação ficam protegidos no backend.</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <app-brand />
+    <p>Powered by KLIPY</p>
+    <p>GifJam é independente e não é afiliado ao Discord ou à KLIPY.</p>
+  </footer>
+</div>
