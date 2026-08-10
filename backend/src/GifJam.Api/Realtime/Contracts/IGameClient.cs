@@ -14,6 +14,12 @@ public interface IGameClient
 
     Task SubmissionProgress(SubmissionProgressSnapshot progress);
 
+    Task RoundRevealed(RoundRevealSnapshot reveal);
+
+    Task RankingUpdated(RankingSnapshot ranking);
+
+    Task GameFinished(GameFinishedSnapshot game);
+
     Task CommandRejected(CommandRejectedMessage rejection);
 }
 

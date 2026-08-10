@@ -142,7 +142,7 @@ public sealed class GameCoordinator(
         await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
         if (phaseChanged)
         {
-            await PublishPhaseAsync(game, round);
+            await PublishTransitionAsync(game, round);
         }
 
         return stateProjector.CreatePlayerSnapshot(game, userId);
@@ -209,7 +209,7 @@ public sealed class GameCoordinator(
         await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
         if (phaseChanged)
         {
-            await PublishPhaseAsync(game, round);
+            await PublishTransitionAsync(game, round);
         }
 
         return stateProjector.CreatePlayerSnapshot(game, userId);
@@ -259,10 +259,88 @@ public sealed class GameCoordinator(
 
         var progress = GetSubmissionProgress(game, round, static (savedRound, participantId) =>
             savedRound.GifSubmissions.Any(saved => saved.UserId == participantId));
+        var phaseChanged = false;
+        if (progress.Eligible > 0 && progress.Completed >= progress.Eligible)
+        {
+            AdvanceFromGifSubmission(game, round);
+            phaseChanged = true;
+        }
+
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
+        if (phaseChanged)
+        {
+            await PublishTransitionAsync(game, round);
+        }
+
+        return stateProjector.CreatePlayerSnapshot(game, userId);
+    }
+
+    public async Task<PlayerGameSnapshot> VoteGifAsync(
+        string gameCode,
+        Guid userId,
+        Guid gifSubmissionId,
+        CancellationToken cancellationToken)
+    {
+        var gameId = await FindGameIdAsync(gameCode, cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        EnsureMember(game, userId);
+        var round = GetCurrentRound(game);
+        EnsurePhase(round, RoundPhase.GifVoting);
+        EnsureBeforeDeadline(round);
+
+        var submission = round.GifSubmissions.SingleOrDefault(saved => saved.Id == gifSubmissionId)
+            ?? throw new ApiException("gif_not_found", "The GIF was not found in this round.", StatusCodes.Status404NotFound);
+        if (submission.UserId == userId)
+        {
+            throw new ApiException("self_vote_forbidden", "You cannot vote for your own GIF.", StatusCodes.Status409Conflict);
+        }
+
+        var existingVote = round.GifVotes.SingleOrDefault(vote => vote.UserId == userId);
+        if (existingVote is not null)
+        {
+            if (existingVote.GifSubmissionId == gifSubmissionId)
+            {
+                return stateProjector.CreatePlayerSnapshot(game, userId);
+            }
+
+            throw new ApiException(
+                "gif_vote_already_submitted",
+                "A GIF vote has already been submitted for this round.",
+                StatusCodes.Status409Conflict);
+        }
+
+        dbContext.GifVotes.Add(new()
+        {
+            RoundId = round.Id,
+            Round = round,
+            GifSubmissionId = submission.Id,
+            GifSubmission = submission,
+            UserId = userId,
+            CreatedAt = clock.UtcNow
+        });
+
+        var progress = GetGifVotingProgress(game, round);
+        var phaseChanged = false;
+        if (progress.Eligible > 0 && progress.Completed >= progress.Eligible)
+        {
+            CompleteGifVoting(game, round);
+            phaseChanged = true;
+        }
+
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
+        if (phaseChanged)
+        {
+            await PublishTransitionAsync(game, round);
+        }
+
         return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
@@ -273,6 +351,8 @@ public sealed class GameCoordinator(
             .Where(round => round.PhaseEndsAt <= now &&
                 (round.Phase == RoundPhase.PhraseSubmission ||
                  round.Phase == RoundPhase.PhraseVoting ||
+                 round.Phase == RoundPhase.GifSubmission ||
+                 round.Phase == RoundPhase.GifVoting ||
                  round.Phase == RoundPhase.Results))
             .OrderBy(round => round.PhaseEndsAt)
             .Select(round => round.Id)
@@ -316,6 +396,14 @@ public sealed class GameCoordinator(
                 SelectWinningPhrase(round);
                 phaseToPublish = round;
                 break;
+            case RoundPhase.GifSubmission:
+                AdvanceFromGifSubmission(game, round);
+                phaseToPublish = round;
+                break;
+            case RoundPhase.GifVoting:
+                CompleteGifVoting(game, round);
+                phaseToPublish = round;
+                break;
             case RoundPhase.Results:
                 phaseToPublish = CompleteResults(game, round);
                 break;
@@ -326,7 +414,7 @@ public sealed class GameCoordinator(
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        await PublishPhaseAsync(game, phaseToPublish);
+        await PublishTransitionAsync(game, phaseToPublish);
     }
 
     private void AdvanceFromPhraseSubmission(Round round)
@@ -375,6 +463,35 @@ public sealed class GameCoordinator(
         round.PhaseEndsAt = clock.UtcNow.Add(GifSubmissionDuration);
     }
 
+    private void AdvanceFromGifSubmission(Game game, Round round)
+    {
+        if (round.GifSubmissions.Count < 2)
+        {
+            CompleteGifVoting(game, round);
+            return;
+        }
+
+        round.Phase = RoundPhase.GifVoting;
+        round.PhaseEndsAt = clock.UtcNow.Add(PhraseVotingDuration);
+    }
+
+    private void CompleteGifVoting(Game game, Round round)
+    {
+        var voteCounts = round.GifVotes
+            .GroupBy(vote => vote.GifSubmissionId)
+            .ToDictionary(group => group.Key, group => group.Count());
+        foreach (var submission in round.GifSubmissions)
+        {
+            if (voteCounts.TryGetValue(submission.Id, out var receivedVotes))
+            {
+                game.Players.Single(player => player.UserId == submission.UserId).Score += receivedVotes;
+            }
+        }
+
+        round.Phase = RoundPhase.Results;
+        round.PhaseEndsAt = clock.UtcNow.Add(ResultsDuration);
+    }
+
     private Round CompleteResults(Game game, Round round)
     {
         round.Phase = RoundPhase.Completed;
@@ -410,11 +527,48 @@ public sealed class GameCoordinator(
         return new(completed, eligiblePlayers.Length, clock.UtcNow);
     }
 
+    private SubmissionProgressSnapshot GetGifVotingProgress(Game game, Round round)
+    {
+        var eligiblePlayers = game.Players
+            .Where(player => player.IsConnected &&
+                round.GifSubmissions.Any(submission => submission.UserId != player.UserId))
+            .Select(player => player.UserId)
+            .ToArray();
+        var completed = eligiblePlayers.Count(playerId => round.GifVotes.Any(vote => vote.UserId == playerId));
+        return new(completed, eligiblePlayers.Length, clock.UtcNow);
+    }
+
     private async Task PublishPhaseAsync(Game game, Round round) =>
         await realtimeNotifier.PhaseChangedAsync(
             game.Code,
             stateProjector.CreatePhaseSnapshot(round),
             CancellationToken.None);
+
+    private async Task PublishTransitionAsync(Game game, Round round)
+    {
+        await PublishPhaseAsync(game, round);
+        if (round.Phase == RoundPhase.Results)
+        {
+            await realtimeNotifier.RoundRevealedAsync(
+                game.Code,
+                stateProjector.CreateRoundRevealSnapshot(round),
+                CancellationToken.None);
+            await realtimeNotifier.RankingUpdatedAsync(
+                game.Code,
+                stateProjector.CreateRankingSnapshot(game, isFinal: false),
+                CancellationToken.None);
+        }
+
+        if (game.Status == GameStatus.Finished)
+        {
+            var ranking = stateProjector.CreateRankingSnapshot(game, isFinal: true);
+            await realtimeNotifier.RankingUpdatedAsync(game.Code, ranking, CancellationToken.None);
+            await realtimeNotifier.GameFinishedAsync(
+                game.Code,
+                new(game.Code, ranking, game.FinishedAt ?? clock.UtcNow, clock.UtcNow),
+                CancellationToken.None);
+        }
+    }
 
     private async Task<Guid> FindGameIdAsync(string gameCode, CancellationToken cancellationToken)
     {
@@ -432,10 +586,12 @@ public sealed class GameCoordinator(
             .ThenInclude(player => player.User)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.Phrases)
+            .ThenInclude(phrase => phrase.User)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.PhraseVotes)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.GifSubmissions)
+            .ThenInclude(submission => submission.User)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.GifVotes)
             .Where(game => game.Id == gameId)
