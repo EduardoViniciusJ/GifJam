@@ -15,7 +15,8 @@ public sealed class GameService(
     IGameLockManager lockManager,
     IGameRealtimeNotifier realtimeNotifier,
     GameStateProjector stateProjector,
-    IClock clock)
+    IClock clock,
+    GameTelemetry gameTelemetry)
 {
     private const int MaximumPlayers = 6;
 
@@ -56,6 +57,7 @@ public sealed class GameService(
 
         dbContext.Games.Add(game);
         await dbContext.SaveChangesAsync(cancellationToken);
+        gameTelemetry.GameCreated(game.Code, game.TotalRounds);
         return await GetAsync(code, userId, cancellationToken);
     }
 

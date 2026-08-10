@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.WebUtilities;
+using GifJam.Api.Common.Observability;
 
 namespace GifJam.Api.Common.Errors;
 
@@ -17,13 +18,14 @@ public sealed partial class GlobalExceptionHandler(
         var code = apiException?.Code ?? "internal_error";
         var detail = apiException?.Message ?? "An unexpected error occurred.";
 
+        var traceId = TraceContext.GetTraceId(httpContext);
         if (apiException is null)
         {
-            LogUnhandledRequest(logger, exception, httpContext.TraceIdentifier);
+            LogUnhandledRequest(logger, exception, traceId);
         }
         else
         {
-            LogRejectedRequest(logger, code, httpContext.TraceIdentifier);
+            LogRejectedRequest(logger, code, traceId);
         }
 
         httpContext.Response.StatusCode = statusCode;
@@ -40,7 +42,7 @@ public sealed partial class GlobalExceptionHandler(
                 Extensions =
                 {
                     ["code"] = code,
-                    ["traceId"] = httpContext.TraceIdentifier
+                    ["traceId"] = traceId
                 }
             }
         });

@@ -1,0 +1,39 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.302
+      - run: dotnet restore GifJam.sln
+      - run: dotnet tool restore
+      - run: dotnet format GifJam.sln --verify-no-changes --no-restore
+      - run: dotnet build GifJam.sln -c Release --no-restore
+      - run: dotnet test GifJam.sln -c Release --no-build --logger "console;verbosity=minimal"
+      - run: dotnet list GifJam.sln package --vulnerable --include-transitive
+      - shell: pwsh
+        run: ./scripts/Export-OpenApi.ps1
+      - run: git diff --exit-code -- openapi/openapi.json
+      - run: docker build -f src/GifJam.Api/Dockerfile -t gifjam-api:ci .
