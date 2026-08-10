@@ -840,6 +840,28 @@ ng-icon {
   grid-template-columns: repeat(3, 1fr);
 }
 
+.setting-row--mode {
+  grid-template-columns: 160px minmax(0, 520px);
+}
+
+.segmented-control--mode {
+  width: min(100%, 520px);
+  height: auto;
+  min-height: 50px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.segmented-control--mode button {
+  display: flex;
+  min-height: 50px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .segmented-control__active {
   background: var(--brand) !important;
   color: var(--ink);
@@ -1731,6 +1753,88 @@ ng-icon {
   line-height: 1.5;
 }
 
+.global-ranking {
+  display: grid;
+  gap: 1px;
+  margin: 36px 0;
+  overflow: hidden;
+  border: 1px solid #d6dee9;
+  border-radius: 8px;
+  background: #d6dee9;
+}
+
+.global-ranking__header,
+.global-ranking__row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 18px;
+  background: #ffffff;
+}
+
+.global-ranking__header {
+  color: #64748b;
+  font-family: 'JetBrains Mono Variable', monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.global-ranking__row {
+  min-height: 68px;
+}
+
+.global-ranking__row--current {
+  background: #fff8ee;
+}
+
+.global-ranking__row > strong {
+  color: var(--brand-strong);
+  font-family: 'JetBrains Mono Variable', monospace;
+  font-size: 18px;
+}
+
+.global-ranking__player {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+
+.global-ranking__player > img,
+.global-ranking__player > .ranking-avatar {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffe3c1;
+  object-fit: cover;
+}
+
+.global-ranking__player > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.global-ranking__player b,
+.global-ranking__player small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.global-ranking__player small {
+  color: #64748b;
+}
+
+.global-ranking__score {
+  color: #166534;
+  white-space: nowrap;
+}
+
 @keyframes hero-copy-enter {
   from {
     opacity: 0;
@@ -1951,6 +2055,10 @@ ng-icon {
     grid-template-columns: 1fr;
   }
 
+  .setting-row--mode {
+    grid-template-columns: 1fr;
+  }
+
   .segmented-control {
     width: 100%;
   }
@@ -2114,6 +2222,24 @@ ng-icon {
   .winner-ranking .ranking-avatar {
     width: 36px;
     height: 36px;
+  }
+
+  .global-ranking__header,
+  .global-ranking__row {
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    gap: 10px;
+    padding-inline: 10px;
+  }
+
+  .global-ranking__header {
+    font-size: 9px;
+  }
+
+  .global-ranking__player > img,
+  .global-ranking__player > .ranking-avatar {
+    width: 36px;
+    height: 36px;
+    flex-basis: 36px;
   }
 }
 

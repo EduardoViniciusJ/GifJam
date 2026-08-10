@@ -12,6 +12,8 @@ public sealed class User
 
     public string? AvatarUrl { get; set; }
 
+    public int TotalScore { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

@@ -126,7 +126,9 @@ public sealed class GameHubTests(PostgresFixture database)
 
         await using (var phraseContext = database.CreateDbContext())
         {
-            var phraseIds = await phraseContext.Phrases.ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+            var phraseIds = await phraseContext.Phrases
+                .Where(phrase => phrase.UserId.HasValue)
+                .ToDictionaryAsync(phrase => phrase.UserId!.Value, phrase => phrase.Id);
             await hostHub.InvokeAsync("VotePhrase", created.Lobby.Code, phraseIds[users[1].Id]);
             await ReadEventAsync(progressEvents.Reader);
             await guestHub.InvokeAsync("VotePhrase", created.Lobby.Code, phraseIds[users[0].Id]);

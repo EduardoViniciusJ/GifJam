@@ -7,10 +7,12 @@
         <ng-icon name="lucideMessageSquare" aria-hidden="true" />
         Como jogar
       </a>
-      <a routerLink="/ranking">
-        <ng-icon name="lucideTrophy" aria-hidden="true" />
-        Ranking
-      </a>
+      @if (isAuthenticated()) {
+        <a routerLink="/ranking">
+          <ng-icon name="lucideTrophy" aria-hidden="true" />
+          Ranking
+        </a>
+      }
     </nav>
 
     @if (isAuthenticated()) {

@@ -151,8 +151,15 @@ import { ApiProblemError } from '@core/models/problem-details.model';
             <div class="phase-panel__intro">
               <span class="phase-panel__icon"><ng-icon name="lucideVote" /></span>
               <div>
-                <h2 id="phrase-vote-title">Escolha a frase mais engraçada</h2>
-                <p>Seu voto é anônimo. A sua própria frase está marcada e não pode ser votada.</p>
+                @if (isAiPhraseMode()) {
+                  <h2 id="phrase-vote-title">Escolha a melhor frase da IA</h2>
+                  <p>
+                    As frases foram criadas para esta sala. Vote na que combina melhor com um GIF.
+                  </p>
+                } @else {
+                  <h2 id="phrase-vote-title">Escolha a frase mais engraçada</h2>
+                  <p>Seu voto é anônimo. A sua própria frase está marcada e não pode ser votada.</p>
+                }
               </div>
             </div>
             @if (submissionProgress(); as progress) {
@@ -418,7 +425,11 @@ import { ApiProblemError } from '@core/models/problem-details.model';
                 <div class="revealed-phrase">
                   <span>Frase escolhida</span>
                   <strong>“{{ phrase.text }}”</strong>
-                  <small>por {{ phrase.author.displayName }}</small>
+                  @if (phrase.author; as author) {
+                    <small>por {{ author.displayName }}</small>
+                  } @else {
+                    <small>Frase gerada pela IA</small>
+                  }
                 </div>
               }
 
@@ -574,6 +585,7 @@ export class GamePhasePage implements OnInit {
   readonly round = this.store.round;
   readonly submissionProgress = this.store.submissionProgress;
   readonly totalRounds = computed(() => this.store.lobby()?.totalRounds ?? 0);
+  readonly isAiPhraseMode = computed(() => this.store.lobby()?.mode === 'AiRandomPhrases');
   readonly phraseText = signal('');
   readonly selectedPhraseId = signal<string | null>(null);
   readonly selectedGifId = signal<string | null>(null);

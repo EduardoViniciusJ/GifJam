@@ -77,6 +77,95 @@ public sealed class GameCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task AiModeStartsWithGeneratedPhrasesReadyForVoting()
+    {
+        var setup = await CreateReadyGameAsync();
+        var lobby = await WithGameServiceAsync(service => service.UpdateSettingsAsync(
+            setup.Code,
+            setup.Host.Id,
+            3,
+            60,
+            60,
+            CancellationToken.None,
+            GameMode.AiRandomPhrases));
+
+        var snapshot = await StartGameAsync(setup);
+
+        Assert.Equal(GameMode.AiRandomPhrases, lobby.Mode);
+        Assert.NotNull(snapshot.Round);
+        Assert.Equal(RoundPhase.PhraseVoting, snapshot.Round.Phase);
+        Assert.Equal(2, snapshot.Round.Phrases.Count);
+        await using var context = database.CreateDbContext();
+        var phrases = await context.Phrases.OrderBy(phrase => phrase.Id).ToArrayAsync();
+        Assert.Equal(2, phrases.Length);
+        Assert.All(phrases, phrase =>
+        {
+            Assert.Null(phrase.UserId);
+            Assert.Equal(PhraseSource.Ai, phrase.Source);
+        });
+
+        await WithCoordinatorAsync(coordinator => coordinator.VotePhraseAsync(
+            setup.Code,
+            setup.Host.Id,
+            phrases[0].Id,
+            CancellationToken.None));
+        Assert.Equal(1, await context.PhraseVotes.CountAsync());
+    }
+
+    [Fact]
+    public async Task AiModeGeneratesFreshOptionsForTheNextRound()
+    {
+        var setup = await CreateReadyGameAsync();
+        await WithGameServiceAsync(service => service.UpdateSettingsAsync(
+            setup.Code,
+            setup.Host.Id,
+            3,
+            60,
+            60,
+            CancellationToken.None,
+            GameMode.AiRandomPhrases));
+        await StartGameAsync(setup);
+
+        Guid[] phraseIds;
+        await using (var context = database.CreateDbContext())
+        {
+            phraseIds = await context.Phrases.Select(phrase => phrase.Id).ToArrayAsync();
+        }
+
+        await WithCoordinatorAsync(coordinator => coordinator.VotePhraseAsync(
+            setup.Code,
+            setup.Host.Id,
+            phraseIds[0],
+            CancellationToken.None));
+        await WithCoordinatorAsync(coordinator => coordinator.VotePhraseAsync(
+            setup.Code,
+            setup.Guest.Id,
+            phraseIds[1],
+            CancellationToken.None));
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
+        await WithCoordinatorAsync(async coordinator =>
+        {
+            await coordinator.ProcessExpiredRoundsAsync(CancellationToken.None);
+            return true;
+        });
+        await WithCoordinatorAsync(coordinator => coordinator.SetResultsReadyAsync(
+            setup.Code,
+            setup.Host.Id,
+            CancellationToken.None));
+        var snapshot = await WithCoordinatorAsync(coordinator => coordinator.SetResultsReadyAsync(
+            setup.Code,
+            setup.Guest.Id,
+            CancellationToken.None));
+
+        Assert.NotNull(snapshot.Round);
+        Assert.Equal(2, snapshot.Round.RoundNumber);
+        Assert.Equal(RoundPhase.PhraseVoting, snapshot.Round.Phase);
+        Assert.Equal(2, snapshot.Round.Phrases.Count);
+        await using var verificationContext = database.CreateDbContext();
+        Assert.Equal(4, await verificationContext.Phrases.CountAsync());
+    }
+
+    [Fact]
     public async Task GuestCannotConfigureLobby()
     {
         var setup = await CreateReadyGameAsync();
@@ -322,7 +411,9 @@ public sealed class GameCoordinatorTests : IDisposable
     private async Task<Dictionary<Guid, Guid>> LoadPhraseIdsAsync()
     {
         await using var context = database.CreateDbContext();
-        return await context.Phrases.ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+        return await context.Phrases
+            .Where(phrase => phrase.UserId.HasValue)
+            .ToDictionaryAsync(phrase => phrase.UserId!.Value, phrase => phrase.Id);
     }
 
     private async Task<T> WithCoordinatorAsync<T>(Func<GameCoordinator, Task<T>> action)

@@ -2,10 +2,11 @@ import { HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 
 import { SessionTokenService } from '@core/auth/session-token.service';
+import { apiUrl } from './api-url';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const token = inject(SessionTokenService).get();
-  const isApiRequest = request.url.startsWith('/api/');
+  const isApiRequest = request.url.startsWith(apiUrl('/'));
 
   if (!token || !isApiRequest) {
     return next(request);

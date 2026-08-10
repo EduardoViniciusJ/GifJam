@@ -1,4 +1,5 @@
 export type GameStatus = 'Lobby' | 'InProgress' | 'Finished' | 'Closed';
+export type GameMode = 'Classic' | 'AiRandomPhrases';
 export type RoundPhase =
   'PhraseSubmission' | 'PhraseVoting' | 'GifSubmission' | 'GifVoting' | 'Results' | 'Completed';
 
@@ -16,6 +17,7 @@ export interface LobbyPlayerSnapshot {
 export interface LobbySnapshot {
   code: string;
   status: GameStatus;
+  mode: GameMode;
   totalRounds: number;
   phraseSubmissionSeconds: number;
   resultsSeconds: number;
@@ -101,7 +103,8 @@ export interface RevealedPlayerSnapshot {
 export interface RevealedPhraseSnapshot {
   id: string;
   text: string;
-  author: RevealedPlayerSnapshot;
+  source: 'Player' | 'Ai';
+  author: RevealedPlayerSnapshot | null;
 }
 
 export interface RevealedGifSnapshot {
@@ -144,6 +147,21 @@ export interface RankingSnapshot {
   serverTime: string;
 }
 
+export interface GlobalRankingEntry {
+  position: number;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  score: number;
+  isCurrentUser: boolean;
+}
+
+export interface GlobalRankingSnapshot {
+  entries: GlobalRankingEntry[];
+  serverTime: string;
+}
+
 export interface PlayerRoundSnapshot {
   roundNumber: number;
   phase: RoundPhase;
@@ -164,6 +182,7 @@ export interface PlayerRoundSnapshot {
 }
 
 export interface GameSettings {
+  mode: GameMode;
   totalRounds: number;
   phraseSubmissionSeconds: number;
   resultsSeconds: number;

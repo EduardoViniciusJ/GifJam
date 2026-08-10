@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 
+import { authGuard } from '@core/auth/auth.guard';
+
 export const routes: Routes = [
   {
     path: '',
@@ -20,6 +22,7 @@ export const routes: Routes = [
   {
     path: 'ranking',
     title: 'Ranking | GifJam',
+    canActivate: [authGuard],
     loadComponent: () => import('@features/ranking/ranking.page').then((page) => page.RankingPage),
   },
   { path: '**', redirectTo: '' },

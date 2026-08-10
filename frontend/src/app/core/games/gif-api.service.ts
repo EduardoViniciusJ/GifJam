@@ -2,6 +2,8 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
+import { apiUrl } from '@core/http/api-url';
+
 import { GifSearchResponse } from './game.models';
 
 @Injectable({ providedIn: 'root' })
@@ -15,7 +17,7 @@ export class GifApiService {
     }
 
     return this.http.get<GifSearchResponse>(
-      `/api/games/${encodeURIComponent(gameCode)}/gifs/search`,
+      apiUrl(`/games/${encodeURIComponent(gameCode)}/gifs/search`),
       { params },
     );
   }

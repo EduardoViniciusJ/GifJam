@@ -7,10 +7,13 @@ using GifJam.Api.Common.Observability;
 using GifJam.Api.Data;
 using GifJam.Api.Data.Cleanup;
 using GifJam.Api.Features.Auth;
+using GifJam.Api.Features.AiPhrases;
 using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Games;
+using GifJam.Api.Features.Ranking;
 using GifJam.Api.GameEngine;
 using GifJam.Api.Integrations.Discord;
+using GifJam.Api.Integrations.Gemini;
 using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -106,6 +109,13 @@ builder.Services.AddOptions<KlipyOptions>()
     .Validate(options => options.Locale.Length is >= 2 and <= 16, "KLIPY Locale is invalid.")
     .Validate(options => options.Country.Length == 2, "KLIPY Country must be an ISO alpha-2 code.")
     .ValidateOnStart();
+builder.Services.AddOptions<GeminiOptions>()
+    .BindConfiguration(GeminiOptions.SectionName)
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Model), "Gemini Model is required.")
+    .Validate(options => Uri.TryCreate(options.BaseUrl, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps,
+        "Gemini BaseUrl must be an absolute HTTPS URL.")
+    .Validate(options => options.TimeoutSeconds is >= 1 and <= 30, "Gemini TimeoutSeconds must be between 1 and 30.")
+    .ValidateOnStart();
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -179,11 +189,19 @@ builder.Services.AddHttpClient<IGifProvider, KlipyGifProvider>((services, client
         client.Timeout = TimeSpan.FromSeconds(5);
     })
     .RemoveAllLoggers();
+builder.Services.AddHttpClient<IAiPhraseProvider, GeminiAiPhraseProvider>((services, client) =>
+    {
+        var options = services.GetRequiredService<IOptions<GeminiOptions>>().Value;
+        client.BaseAddress = new(options.BaseUrl);
+        client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+    })
+    .RemoveAllLoggers();
 builder.Services.AddScoped<AuthStateService>();
 builder.Services.AddScoped<JwtTokenService>();
 builder.Services.AddScoped<AuthService>();
 builder.Services.AddSingleton<GifSelectionTokenService>();
 builder.Services.AddScoped<GifSearchService>();
+builder.Services.AddScoped<AiPhraseGenerationService>();
 builder.Services.AddSingleton<IGameCodeGenerator, GameCodeGenerator>();
 builder.Services.AddSingleton<IGameLockManager, GameLockManager>();
 builder.Services.AddSingleton<GameTelemetry>();
@@ -191,6 +209,7 @@ builder.Services.AddSingleton<GameStateProjector>();
 builder.Services.AddSingleton<GameConnectionRegistry>();
 builder.Services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
 builder.Services.AddScoped<GameService>();
+builder.Services.AddScoped<RankingService>();
 builder.Services.AddScoped<GameCoordinator>();
 builder.Services.AddScoped<GameRecoveryService>();
 if (builder.Configuration.GetValue("BackgroundServices:Enabled", true))
@@ -260,6 +279,7 @@ app.MapGet("/", () => Results.Ok(new { name = "GifJam API", status = "running" }
     .ExcludeFromDescription();
 app.MapAuthEndpoints();
 app.MapGameEndpoints();
+app.MapRankingEndpoints();
 app.MapGifEndpoints();
 app.MapHub<GameHub>("/hubs/game");
 

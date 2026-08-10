@@ -153,6 +153,7 @@ public sealed class GifVotingAndRankingTests : IDisposable
         Assert.Equal(3, game.Rounds.Count);
         Assert.All(game.Rounds, round => Assert.Equal(RoundPhase.Completed, round.Phase));
         Assert.All(game.Players, player => Assert.Equal(3, player.Score));
+        Assert.All(game.Players, player => Assert.Equal(3, player.User.TotalScore));
 
         using var scope = factory.Services.CreateScope();
         var ranking = scope.ServiceProvider.GetRequiredService<GameStateProjector>()
@@ -317,8 +318,8 @@ public sealed class GifVotingAndRankingTests : IDisposable
         await using (var context = database.CreateDbContext())
         {
             var phraseIds = await context.Phrases
-                .Where(phrase => phrase.Round.RoundNumber == roundNumber)
-                .ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+                .Where(phrase => phrase.Round.RoundNumber == roundNumber && phrase.UserId.HasValue)
+                .ToDictionaryAsync(phrase => phrase.UserId!.Value, phrase => phrase.Id);
             for (var index = 0; index < setup.Players.Count; index++)
             {
                 var voter = setup.Players[index];
@@ -392,8 +393,8 @@ public sealed class GifVotingAndRankingTests : IDisposable
             CancellationToken.None));
         await using var context = database.CreateDbContext();
         var phraseIds = await context.Phrases
-            .Where(phrase => phrase.Round.RoundNumber == roundNumber)
-            .ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+            .Where(phrase => phrase.Round.RoundNumber == roundNumber && phrase.UserId.HasValue)
+            .ToDictionaryAsync(phrase => phrase.UserId!.Value, phrase => phrase.Id);
         await WithCoordinatorAsync(coordinator => coordinator.VotePhraseAsync(
             setup.Code,
             setup.Host.Id,

@@ -72,6 +72,9 @@ docs/
 # Local generated images and temporary files
 /tmp/
 
+# Local development server logs
+**/*-start*.log
+
 # Local secrets (do not commit)
 .env
 .env.*

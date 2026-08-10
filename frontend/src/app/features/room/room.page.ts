@@ -19,6 +19,7 @@ import {
   lucideLink,
   lucidePlay,
   lucideRefreshCw,
+  lucideSparkles,
   lucideUsers,
   lucideWifi,
   lucideWifiOff,
@@ -29,7 +30,7 @@ import { AuthService } from '@core/auth/auth.service';
 import { GameApiService } from '@core/games/game-api.service';
 import { GameRealtimeService } from '@core/games/game-realtime.service';
 import { GameStore } from '@core/games/game.store';
-import { CommandRejectedMessage } from '@core/games/game.models';
+import { CommandRejectedMessage, GameMode } from '@core/games/game.models';
 import { ApiProblemError } from '@core/models/problem-details.model';
 import { BrandComponent } from '@shared/ui/brand/brand.component';
 import { GamePhasePage } from '@features/game/game-phase.page';
@@ -51,6 +52,7 @@ type RoomPageStatus = 'loading' | 'ready' | 'error';
       lucideLink,
       lucidePlay,
       lucideRefreshCw,
+      lucideSparkles,
       lucideUsers,
       lucideWifi,
       lucideWifiOff,
@@ -170,6 +172,45 @@ type RoomPageStatus = 'loading' | 'ready' | 'error';
 
             <section class="lobby-controls" aria-label="Configurações da partida">
               <div class="game-settings">
+                <div class="setting-row setting-row--mode">
+                  <span>Modo de frases</span>
+                  <div
+                    class="segmented-control segmented-control--mode"
+                    aria-label="Modo de frases"
+                  >
+                    <button
+                      type="button"
+                      [class.segmented-control__active]="lobby.mode === 'Classic'"
+                      [disabled]="!currentPlayer()?.isHost || actionPending()"
+                      (click)="
+                        updateSettings(
+                          lobby.totalRounds,
+                          lobby.phraseSubmissionSeconds,
+                          lobby.resultsSeconds,
+                          'Classic'
+                        )
+                      "
+                    >
+                      Frases dos jogadores
+                    </button>
+                    <button
+                      type="button"
+                      [class.segmented-control__active]="lobby.mode === 'AiRandomPhrases'"
+                      [disabled]="!currentPlayer()?.isHost || actionPending()"
+                      (click)="
+                        updateSettings(
+                          lobby.totalRounds,
+                          lobby.phraseSubmissionSeconds,
+                          lobby.resultsSeconds,
+                          'AiRandomPhrases'
+                        )
+                      "
+                    >
+                      <ng-icon name="lucideSparkles" aria-hidden="true" />
+                      Frases aleatórias (IA)
+                    </button>
+                  </div>
+                </div>
                 <div class="setting-row">
                   <span>Rodadas</span>
                   <div class="segmented-control" aria-label="Quantidade de rodadas">
@@ -182,7 +223,8 @@ type RoomPageStatus = 'loading' | 'ready' | 'error';
                           updateSettings(
                             rounds,
                             lobby.phraseSubmissionSeconds,
-                            lobby.resultsSeconds
+                            lobby.resultsSeconds,
+                            lobby.mode
                           )
                         "
                       >
@@ -204,7 +246,14 @@ type RoomPageStatus = 'loading' | 'ready' | 'error';
                           lobby.phraseSubmissionSeconds === seconds
                         "
                         [disabled]="!currentPlayer()?.isHost || actionPending()"
-                        (click)="updateSettings(lobby.totalRounds, seconds, lobby.resultsSeconds)"
+                        (click)="
+                          updateSettings(
+                            lobby.totalRounds,
+                            seconds,
+                            lobby.resultsSeconds,
+                            lobby.mode
+                          )
+                        "
                       >
                         {{ seconds }}s
                       </button>
@@ -223,7 +272,12 @@ type RoomPageStatus = 'loading' | 'ready' | 'error';
                         [class.segmented-control__active]="lobby.resultsSeconds === seconds"
                         [disabled]="!currentPlayer()?.isHost || actionPending()"
                         (click)="
-                          updateSettings(lobby.totalRounds, lobby.phraseSubmissionSeconds, seconds)
+                          updateSettings(
+                            lobby.totalRounds,
+                            lobby.phraseSubmissionSeconds,
+                            seconds,
+                            lobby.mode
+                          )
                         "
                       >
                         {{ seconds }}s
@@ -361,6 +415,7 @@ export class RoomPage implements OnInit, OnDestroy {
     totalRounds: number,
     phraseSubmissionSeconds: number,
     resultsSeconds: number,
+    mode: GameMode,
   ): Promise<void> {
     const code = this.lobby()?.code;
     if (!code || !this.currentPlayer()?.isHost || this.actionPending()) {
@@ -368,7 +423,13 @@ export class RoomPage implements OnInit, OnDestroy {
     }
 
     await this.runCommand(() =>
-      this.realtime.updateGameSettings(code, totalRounds, phraseSubmissionSeconds, resultsSeconds),
+      this.realtime.updateGameSettingsWithMode(
+        code,
+        totalRounds,
+        phraseSubmissionSeconds,
+        resultsSeconds,
+        mode,
+      ),
     );
   }
 
@@ -423,6 +484,7 @@ export class RoomPage implements OnInit, OnDestroy {
               totalRounds: 3,
               phraseSubmissionSeconds: 60,
               resultsSeconds: 60,
+              mode: 'Classic',
             })
           : this.gameApi.join(this.requestedCode),
       );

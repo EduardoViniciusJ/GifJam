@@ -62,8 +62,8 @@ public static class GameEndpoints
                     request.TotalRounds,
                     request.PhraseSubmissionSeconds,
                     request.ResultsSeconds,
-                    request.Mode,
-                    cancellationToken)))
+                    cancellationToken,
+                    request.Mode)))
             .RequireRateLimiting(WriteRateLimitPolicy)
             .Produces<LobbySnapshot>()
             .ProducesProblem(StatusCodes.Status400BadRequest)

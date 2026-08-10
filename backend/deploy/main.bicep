@@ -20,6 +20,9 @@ param discordClientSecret string
 param klipyApiKey string
 
 @secure()
+param geminiApiKey string
+
+@secure()
 param jwtSigningKey string
 
 var registryServer = '${registryName}.azurecr.io'
@@ -104,6 +107,10 @@ resource api 'Microsoft.App/containerApps@2025-07-01' = {
           value: klipyApiKey
         }
         {
+          name: 'gemini-api-key'
+          value: geminiApiKey
+        }
+        {
           name: 'jwt-signing-key'
           value: jwtSigningKey
         }
@@ -142,6 +149,10 @@ resource api 'Microsoft.App/containerApps@2025-07-01' = {
             {
               name: 'Klipy__ApiKey'
               secretRef: 'klipy-api-key'
+            }
+            {
+              name: 'Gemini__ApiKey'
+              secretRef: 'gemini-api-key'
             }
             {
               name: 'Jwt__SigningKey'

@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, catchError, of, tap, throwError } from 'rxjs';
 
 import { ApiProblemError } from '@core/models/problem-details.model';
+import { apiUrl } from '@core/http/api-url';
 
 import { AuthExchangeResponse, SessionUser } from './auth.models';
 import { SessionTokenService } from './session-token.service';
@@ -17,7 +18,7 @@ export class AuthService {
 
   exchange(code: string): Observable<AuthExchangeResponse> {
     return this.http
-      .post<AuthExchangeResponse>('/api/auth/exchange', { code })
+      .post<AuthExchangeResponse>(apiUrl('/auth/exchange'), { code })
       .pipe(tap((response) => this.session.set(response.accessToken, response.user)));
   }
 
@@ -26,7 +27,7 @@ export class AuthService {
       return of(null);
     }
 
-    return this.http.get<SessionUser>('/api/auth/me').pipe(
+    return this.http.get<SessionUser>(apiUrl('/auth/me')).pipe(
       tap((user) => this.session.setUser(user)),
       catchError((error: unknown) => {
         if (error instanceof ApiProblemError && error.status === 401) {
@@ -41,7 +42,7 @@ export class AuthService {
 
   startDiscordLogin(returnUrl: string): void {
     const query = new URLSearchParams({ returnUrl: normalizeReturnUrl(returnUrl) });
-    window.location.assign(`/api/auth/discord/start?${query.toString()}`);
+    window.location.assign(`${apiUrl('/auth/discord/start')}?${query.toString()}`);
   }
 
   logout(): void {

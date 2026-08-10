@@ -140,6 +140,19 @@ public sealed record RankingSnapshot(
     IReadOnlyList<RankingEntrySnapshot> Entries,
     DateTimeOffset ServerTime);
 
+public sealed record GlobalRankingEntrySnapshot(
+    int Position,
+    Guid UserId,
+    string Username,
+    string DisplayName,
+    string? AvatarUrl,
+    int Score,
+    bool IsCurrentUser);
+
+public sealed record GlobalRankingSnapshot(
+    IReadOnlyList<GlobalRankingEntrySnapshot> Entries,
+    DateTimeOffset ServerTime);
+
 public sealed record GameFinishedSnapshot(
     string GameCode,
     RankingSnapshot Ranking,

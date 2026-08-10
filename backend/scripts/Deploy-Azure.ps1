@@ -23,7 +23,7 @@ param(
 $ErrorActionPreference = 'Stop'
 
 if (-not $ConfirmProductionCredentials) {
-    throw 'Use -ConfirmProductionCredentials only after rotating exposed credentials and configuring production Discord/KLIPY applications.'
+    throw 'Use -ConfirmProductionCredentials only after rotating exposed credentials and configuring production Discord/KLIPY/Gemini applications.'
 }
 
 if ($FrontendUrl.Scheme -ne 'https' -or
@@ -58,6 +58,7 @@ try {
         discordClientId = [Environment]::GetEnvironmentVariable('Discord__ClientId', 'Process')
         discordClientSecret = [Environment]::GetEnvironmentVariable('Discord__ClientSecret', 'Process')
         klipyApiKey = [Environment]::GetEnvironmentVariable('Klipy__ApiKey', 'Process')
+        geminiApiKey = [Environment]::GetEnvironmentVariable('Gemini__ApiKey', 'Process')
         jwtSigningKey = [Environment]::GetEnvironmentVariable('Jwt__SigningKey', 'Process')
     }
 
@@ -135,6 +136,7 @@ try {
             postgresConnectionString = @{ value = $requiredSecrets.postgresConnectionString }
             discordClientSecret = @{ value = $requiredSecrets.discordClientSecret }
             klipyApiKey = @{ value = $requiredSecrets.klipyApiKey }
+            geminiApiKey = @{ value = $requiredSecrets.geminiApiKey }
             jwtSigningKey = @{ value = $requiredSecrets.jwtSigningKey }
         }
     }

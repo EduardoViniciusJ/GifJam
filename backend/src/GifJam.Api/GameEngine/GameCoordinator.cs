@@ -4,6 +4,7 @@ using GifJam.Api.Common.Time;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Domain.Enums;
+using GifJam.Api.Features.AiPhrases;
 using GifJam.Api.Features.Games;
 using GifJam.Api.Features.Gifs;
 using GifJam.Api.Realtime;
@@ -19,6 +20,7 @@ public sealed class GameCoordinator(
     GameStateProjector stateProjector,
     IGameRealtimeNotifier realtimeNotifier,
     GifSelectionTokenService gifSelectionTokenService,
+    AiPhraseGenerationService aiPhraseGenerationService,
     GameTelemetry gameTelemetry)
 {
     private static readonly TimeSpan PhraseVotingDuration = TimeSpan.FromSeconds(20);
@@ -33,7 +35,6 @@ public sealed class GameCoordinator(
     {
         var gameId = await FindGameIdAsync(gameCode, cancellationToken);
         await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken);
 
         if (game.HostUserId != userId)
@@ -55,21 +56,13 @@ public sealed class GameCoordinator(
         }
 
         var now = clock.UtcNow;
-        var round = new Round
-        {
-            GameId = game.Id,
-            Game = game,
-            RoundNumber = 1,
-            Phase = RoundPhase.PhraseSubmission,
-            PhaseEndsAt = now.AddSeconds(game.PhraseSubmissionSeconds),
-            StartedAt = now
-        };
+        var round = await CreateRoundAsync(game, 1, cancellationToken);
         game.Status = GameStatus.InProgress;
         game.StartedAt = now;
         game.CurrentRoundNumber = 1;
         game.Version++;
-        dbContext.Rounds.Add(round);
 
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         gameTelemetry.GameStarted(game.Code, game.Players.Count, game.TotalRounds);
@@ -360,7 +353,6 @@ public sealed class GameCoordinator(
     {
         var gameId = await FindGameIdAsync(gameCode, cancellationToken);
         await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken);
         var player = EnsureMember(game, userId);
         var round = GetCurrentRound(game);
@@ -375,9 +367,12 @@ public sealed class GameCoordinator(
         player.ResultReadyRoundNumber = round.RoundNumber;
         var progress = GetResultsReadyProgress(game, round);
         var phaseChanged = progress.Eligible > 0 && progress.Completed >= progress.Eligible;
-        var phaseToPublish = phaseChanged ? CompleteResults(game, round) : round;
+        var phaseToPublish = phaseChanged
+            ? await CompleteResultsAsync(game, round, cancellationToken)
+            : round;
 
         game.Version++;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await realtimeNotifier.SubmissionProgressAsync(game.Code, progress, CancellationToken.None);
@@ -422,7 +417,6 @@ public sealed class GameCoordinator(
         }
 
         await using var gameLock = await lockManager.AcquireAsync(gameId.Value, cancellationToken);
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         var game = await LoadGameAsync(gameId.Value, cancellationToken);
         var round = game.Rounds.SingleOrDefault(savedRound => savedRound.Id == roundId);
         if (round is null || round.PhaseEndsAt > clock.UtcNow)
@@ -450,13 +444,14 @@ public sealed class GameCoordinator(
                 phaseToPublish = round;
                 break;
             case RoundPhase.Results:
-                phaseToPublish = CompleteResults(game, round);
+                phaseToPublish = await CompleteResultsAsync(game, round, cancellationToken);
                 break;
             default:
                 return;
         }
 
         game.Version++;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         await PublishTransitionAsync(game, phaseToPublish);
@@ -531,7 +526,9 @@ public sealed class GameCoordinator(
         {
             if (voteCounts.TryGetValue(submission.Id, out var receivedVotes))
             {
-                game.Players.Single(player => player.UserId == submission.UserId).Score += receivedVotes;
+                var player = game.Players.Single(player => player.UserId == submission.UserId);
+                player.Score += receivedVotes;
+                player.User.TotalScore += receivedVotes;
             }
         }
 
@@ -539,7 +536,10 @@ public sealed class GameCoordinator(
         round.PhaseEndsAt = clock.UtcNow.AddSeconds(game.ResultsSeconds);
     }
 
-    private Round CompleteResults(Game game, Round round)
+    private async Task<Round> CompleteResultsAsync(
+        Game game,
+        Round round,
+        CancellationToken cancellationToken)
     {
         round.Phase = RoundPhase.Completed;
         round.FinishedAt = clock.UtcNow;
@@ -551,17 +551,53 @@ public sealed class GameCoordinator(
         }
 
         game.CurrentRoundNumber++;
-        var nextRound = new Round
+        return await CreateRoundAsync(game, game.CurrentRoundNumber, cancellationToken);
+    }
+
+    private async Task<Round> CreateRoundAsync(
+        Game game,
+        int roundNumber,
+        CancellationToken cancellationToken)
+    {
+        var now = clock.UtcNow;
+        var isAiMode = game.Mode == GameMode.AiRandomPhrases;
+        var round = new Round
         {
             GameId = game.Id,
             Game = game,
-            RoundNumber = game.CurrentRoundNumber,
-            Phase = RoundPhase.PhraseSubmission,
-            PhaseEndsAt = clock.UtcNow.AddSeconds(game.PhraseSubmissionSeconds),
-            StartedAt = clock.UtcNow
+            RoundNumber = roundNumber,
+            Phase = isAiMode ? RoundPhase.PhraseVoting : RoundPhase.PhraseSubmission,
+            PhaseEndsAt = isAiMode
+                ? now.Add(PhraseVotingDuration)
+                : now.AddSeconds(game.PhraseSubmissionSeconds),
+            StartedAt = now
         };
-        dbContext.Rounds.Add(nextRound);
-        return nextRound;
+
+        if (isAiMode)
+        {
+            var playerNames = game.Players
+                .OrderBy(player => player.JoinedAt)
+                .Select(player => player.User.DisplayName)
+                .ToArray();
+            var phrases = await aiPhraseGenerationService.GenerateAsync(
+                playerNames,
+                roundNumber,
+                cancellationToken);
+            foreach (var text in phrases)
+            {
+                round.Phrases.Add(new()
+                {
+                    RoundId = round.Id,
+                    Round = round,
+                    Source = PhraseSource.Ai,
+                    Text = text,
+                    SubmittedAt = now
+                });
+            }
+        }
+
+        dbContext.Rounds.Add(round);
+        return round;
     }
 
     private SubmissionProgressSnapshot GetSubmissionProgress(

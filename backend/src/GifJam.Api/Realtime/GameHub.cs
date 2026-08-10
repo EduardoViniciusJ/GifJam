@@ -41,8 +41,7 @@ public sealed partial class GameHub(
         string gameCode,
         int totalRounds,
         int phraseSubmissionSeconds,
-        int resultsSeconds,
-        GameMode mode = GameMode.Classic) => ExecuteCommandAsync(async () =>
+        int resultsSeconds) => ExecuteCommandAsync(async () =>
     {
         var userId = Context.User!.GetRequiredUserId();
         await gameService.UpdateSettingsAsync(
@@ -51,8 +50,26 @@ public sealed partial class GameHub(
             totalRounds,
             phraseSubmissionSeconds,
             resultsSeconds,
-            mode,
-            Context.ConnectionAborted);
+            Context.ConnectionAborted,
+            GameMode.Classic);
+    });
+
+    public Task UpdateGameSettingsWithMode(
+        string gameCode,
+        int totalRounds,
+        int phraseSubmissionSeconds,
+        int resultsSeconds,
+        GameMode mode) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameService.UpdateSettingsAsync(
+            gameCode,
+            userId,
+            totalRounds,
+            phraseSubmissionSeconds,
+            resultsSeconds,
+            Context.ConnectionAborted,
+            mode);
     });
 
     public Task RequestSync(string gameCode) => ExecuteCommandAsync(async () =>
@@ -146,6 +163,7 @@ public sealed partial class GameHub(
         "invalid_round_count" => "Escolha entre 3 e 6 rodadas.",
         "invalid_phrase_duration" => "Escolha 30, 60 ou 90 segundos para a frase.",
         "invalid_results_duration" => "Escolha 15, 30 ou 60 segundos para a revelação.",
+        "invalid_game_mode" => "Escolha um modo de jogo válido.",
         "game_already_started" => "A partida já começou.",
         "phase_expired" => "Essa etapa terminou. O jogo será sincronizado.",
         "invalid_round_phase" => "Essa ação não está disponível agora.",

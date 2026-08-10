@@ -3,6 +3,8 @@ import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
+import { SessionTokenService } from '@core/auth/session-token.service';
+
 import { HomePage } from './home.page';
 
 describe('HomePage', () => {
@@ -46,16 +48,32 @@ describe('HomePage', () => {
     expect(navigate).toHaveBeenCalledWith(['/sala', 'ABC12']);
   });
 
-  it('keeps the home focused on playing and ranking', async () => {
+  it('hides the global ranking from logged-out visitors', async () => {
     const fixture = TestBed.createComponent(HomePage);
     await fixture.whenStable();
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent as string;
     expect(text).toContain('Como jogar');
-    expect(text).toContain('Ranking');
+    expect(text).not.toContain('Ranking');
     expect(text).not.toContain('Segurança');
     expect(text).not.toContain('Powered by KLIPY');
     expect(fixture.nativeElement.querySelector('.hero__mascot')).toBeNull();
+  });
+
+  it('shows the global ranking link to logged-in visitors', async () => {
+    TestBed.inject(SessionTokenService).set('test-token', {
+      id: 'user-id',
+      discordId: 'discord-id',
+      username: 'player',
+      displayName: 'Player',
+      avatarUrl: null,
+    });
+
+    const fixture = TestBed.createComponent(HomePage);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.textContent).toContain('Ranking');
   });
 });

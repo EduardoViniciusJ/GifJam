@@ -28,7 +28,7 @@ public sealed class GameService(
         int resultsSeconds = 60,
         GameMode mode = GameMode.Classic)
     {
-        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds);
+        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds, mode);
 
         var userExists = await dbContext.Users.AnyAsync(user => user.Id == userId, cancellationToken);
         if (!userExists)
@@ -242,10 +242,10 @@ public sealed class GameService(
         int totalRounds,
         int phraseSubmissionSeconds,
         int resultsSeconds,
-        GameMode mode,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        GameMode mode = GameMode.Classic)
     {
-        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds);
+        ValidateSettings(totalRounds, phraseSubmissionSeconds, resultsSeconds, mode);
         var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
         await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken);
@@ -341,7 +341,8 @@ public sealed class GameService(
     private static void ValidateSettings(
         int totalRounds,
         int phraseSubmissionSeconds,
-        int resultsSeconds)
+        int resultsSeconds,
+        GameMode mode)
     {
         if (totalRounds is < 3 or > 6)
         {
@@ -364,6 +365,14 @@ public sealed class GameService(
             throw new ApiException(
                 "invalid_results_duration",
                 "Results duration must be 15, 30 or 60 seconds.",
+                StatusCodes.Status400BadRequest);
+        }
+
+        if (!Enum.IsDefined(mode))
+        {
+            throw new ApiException(
+                "invalid_game_mode",
+                "The selected game mode is invalid.",
                 StatusCodes.Status400BadRequest);
         }
     }

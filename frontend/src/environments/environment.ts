@@ -1,6 +1,6 @@
 export const environment = {
   production: false,
   name: 'local',
-  apiBaseUrl: '',
+  apiBaseUrl: '/api',
   gameHubUrl: '/hubs/game',
 } as const;

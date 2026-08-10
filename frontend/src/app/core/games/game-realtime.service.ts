@@ -7,9 +7,11 @@ import {
 } from '@microsoft/signalr';
 
 import { SessionTokenService } from '@core/auth/session-token.service';
+import { environment } from '@env/environment';
 
 import {
   CommandRejectedMessage,
+  GameMode,
   LobbySnapshot,
   PlayerGameSnapshot,
   PresenceSnapshot,
@@ -43,7 +45,7 @@ export class GameRealtimeService {
     this.state.set('connecting');
 
     const connection = new HubConnectionBuilder()
-      .withUrl('/hubs/game', { accessTokenFactory: () => this.session.get() ?? '' })
+      .withUrl(environment.gameHubUrl, { accessTokenFactory: () => this.session.get() ?? '' })
       .withAutomaticReconnect([0, 1_000, 3_000, 5_000])
       .configureLogging(LogLevel.Warning)
       .build();
@@ -90,6 +92,23 @@ export class GameRealtimeService {
       totalRounds,
       phraseSubmissionSeconds,
       resultsSeconds,
+    );
+  }
+
+  updateGameSettingsWithMode(
+    gameCode: string,
+    totalRounds: number,
+    phraseSubmissionSeconds: number,
+    resultsSeconds: number,
+    mode: GameMode,
+  ): Promise<void> {
+    return this.invoke(
+      'UpdateGameSettingsWithMode',
+      gameCode,
+      totalRounds,
+      phraseSubmissionSeconds,
+      resultsSeconds,
+      mode,
     );
   }
 

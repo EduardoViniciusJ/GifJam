@@ -580,6 +580,36 @@
           }
         }
       }
+    },
+    "/api/ranking": {
+      "get": {
+        "tags": [
+          "Ranking"
+        ],
+        "operationId": "GetGlobalRanking",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GlobalRankingSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -651,9 +681,20 @@
           "resultsSeconds": {
             "type": "integer",
             "format": "int32"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/GameMode"
           }
         },
         "additionalProperties": false
+      },
+      "GameMode": {
+        "enum": [
+          0,
+          1
+        ],
+        "type": "integer",
+        "format": "int32"
       },
       "GameStatus": {
         "enum": [
@@ -740,6 +781,56 @@
         },
         "additionalProperties": false
       },
+      "GlobalRankingEntrySnapshot": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "username": {
+            "type": "string",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "avatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "score": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "isCurrentUser": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GlobalRankingSnapshot": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GlobalRankingEntrySnapshot"
+            },
+            "nullable": true
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "LobbyPlayerSnapshot": {
         "type": "object",
         "properties": {
@@ -785,6 +876,9 @@
           "status": {
             "$ref": "#/components/schemas/GameStatus"
           },
+          "mode": {
+            "$ref": "#/components/schemas/GameMode"
+          },
           "totalRounds": {
             "type": "integer",
             "format": "int32"
@@ -821,6 +915,14 @@
           }
         },
         "additionalProperties": false
+      },
+      "PhraseSource": {
+        "enum": [
+          0,
+          1
+        ],
+        "type": "integer",
+        "format": "int32"
       },
       "PlayerGameSnapshot": {
         "type": "object",
@@ -1169,6 +1271,9 @@
             "type": "string",
             "nullable": true
           },
+          "source": {
+            "$ref": "#/components/schemas/PhraseSource"
+          },
           "author": {
             "$ref": "#/components/schemas/RevealedPlayerSnapshot"
           }
@@ -1261,6 +1366,9 @@
           "resultsSeconds": {
             "type": "integer",
             "format": "int32"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/GameMode"
           }
         },
         "additionalProperties": false
@@ -1276,6 +1384,9 @@
     },
     {
       "name": "GIFs"
+    },
+    {
+      "name": "Ranking"
     }
   ]
 }
