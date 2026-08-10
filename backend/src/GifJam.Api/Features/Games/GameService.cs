@@ -252,6 +252,8 @@ public sealed class GameService(
             .ThenInclude(round => round.Phrases)
             .Include(game => game.Rounds)
             .ThenInclude(round => round.PhraseVotes)
+            .Include(game => game.Rounds)
+            .ThenInclude(round => round.GifSubmissions)
             .Where(game => game.Id == gameId);
         if (!tracking)
         {

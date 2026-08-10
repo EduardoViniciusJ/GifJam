@@ -3,6 +3,7 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Integrations.Discord;
+using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -13,7 +14,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace GifJam.Api.Tests.Auth;
 
-public sealed class DiscordAuthFactory(PostgresFixture database) : WebApplicationFactory<Program>
+public sealed class DiscordAuthFactory(
+    PostgresFixture database,
+    IGifProvider? gifProvider = null) : WebApplicationFactory<Program>
 {
     public TestClock Clock { get; } = new(DateTimeOffset.UtcNow);
 
@@ -36,6 +39,7 @@ public sealed class DiscordAuthFactory(PostgresFixture database) : WebApplicatio
                 ["Jwt:SigningKey"] = new string('a', 64),
                 ["Jwt:Issuer"] = "GifJam.Tests",
                 ["Jwt:Audience"] = "GifJam.Tests.Client",
+                ["Klipy:ApiKey"] = "test-klipy-key",
                 ["ApplicationUrls:FrontendUrl"] = "https://frontend.test"
             }));
         builder.ConfigureServices(services =>
@@ -46,6 +50,8 @@ public sealed class DiscordAuthFactory(PostgresFixture database) : WebApplicatio
 
             services.RemoveAll<IDiscordClient>();
             services.AddSingleton<IDiscordClient>(new FakeDiscordClient());
+            services.RemoveAll<IGifProvider>();
+            services.AddSingleton(gifProvider ?? new FakeGifProvider());
             services.RemoveAll<IClock>();
             services.AddSingleton<IClock>(Clock);
         });
@@ -64,6 +70,15 @@ public sealed class DiscordAuthFactory(PostgresFixture database) : WebApplicatio
                 "https://cdn.discord.test/avatar.png");
             return Task.FromResult(identity);
         }
+    }
+
+    private sealed class FakeGifProvider : IGifProvider
+    {
+        public Task<GifProviderSearchResult> SearchAsync(
+            string query,
+            string? cursor,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new GifProviderSearchResult([], null));
     }
 }
 

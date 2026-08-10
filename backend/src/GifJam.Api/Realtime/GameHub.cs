@@ -60,6 +60,12 @@ public sealed class GameHub(
         await gameCoordinator.VotePhraseAsync(gameCode, userId, phraseId, Context.ConnectionAborted);
     });
 
+    public Task SubmitGif(string gameCode, string selectionToken) => ExecuteCommandAsync(async () =>
+    {
+        var userId = Context.User!.GetRequiredUserId();
+        await gameCoordinator.SubmitGifAsync(gameCode, userId, selectionToken, Context.ConnectionAborted);
+    });
+
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         var registration = connectionRegistry.Remove(Context.ConnectionId);

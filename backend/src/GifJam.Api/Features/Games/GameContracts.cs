@@ -42,6 +42,18 @@ public sealed record PlayerPhraseSnapshot(Guid Id, string Text, bool IsOwn);
 
 public sealed record SelectedPhraseSnapshot(Guid Id, string Text);
 
+public sealed record PlayerGifSelectionSnapshot(
+    string ExternalId,
+    string Description,
+    string PreviewUrl,
+    string MediaUrl,
+    int Width,
+    int Height,
+    int PreviewWidth,
+    int PreviewHeight,
+    string SourceUrl,
+    string Attribution);
+
 public sealed record RoundPhaseSnapshot(
     int RoundNumber,
     RoundPhase Phase,
@@ -56,8 +68,10 @@ public sealed record PlayerRoundSnapshot(
     DateTimeOffset PhaseEndsAt,
     bool HasSubmittedPhrase,
     bool HasVotedPhrase,
+    bool HasSubmittedGif,
     IReadOnlyList<PlayerPhraseSnapshot> Phrases,
     SelectedPhraseSnapshot? SelectedPhrase,
+    PlayerGifSelectionSnapshot? GifSelection,
     DateTimeOffset ServerTime);
 
 public sealed record SubmissionProgressSnapshot(

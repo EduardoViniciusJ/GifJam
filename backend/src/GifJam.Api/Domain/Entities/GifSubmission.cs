@@ -12,6 +12,8 @@ public sealed class GifSubmission
 
     public string ExternalId { get; set; } = string.Empty;
 
+    public string Description { get; set; } = string.Empty;
+
     public string PreviewUrl { get; set; } = string.Empty;
 
     public string MediaUrl { get; set; } = string.Empty;
@@ -19,6 +21,14 @@ public sealed class GifSubmission
     public string SourceUrl { get; set; } = string.Empty;
 
     public string Attribution { get; set; } = string.Empty;
+
+    public int Width { get; set; }
+
+    public int Height { get; set; }
+
+    public int PreviewWidth { get; set; }
+
+    public int PreviewHeight { get; set; }
 
     public DateTimeOffset SubmittedAt { get; set; }
 
