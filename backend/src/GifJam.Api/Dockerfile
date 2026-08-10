@@ -15,6 +15,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
 ENV ASPNETCORE_HTTP_PORTS=8080
 EXPOSE 8080
+RUN apk add --no-cache krb5-libs
 
 COPY --from=build /app/publish .
 USER $APP_UID

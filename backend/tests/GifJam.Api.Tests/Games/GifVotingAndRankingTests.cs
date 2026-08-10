@@ -148,6 +148,36 @@ public sealed class GifVotingAndRankingTests : IDisposable
         Assert.All(ranking.Entries, entry => Assert.Equal(1, entry.Position));
     }
 
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(6)]
+    public async Task ThreeRoundGameFinishesForHomologationPlayerCounts(int playerCount)
+    {
+        var setup = await CreateReadyGameAsync(playerCount);
+        await WithCoordinatorAsync(coordinator => coordinator.StartGameAsync(
+            setup.Code,
+            setup.Players[0].Id,
+            CancellationToken.None));
+
+        for (var roundNumber = 1; roundNumber <= 3; roundNumber++)
+        {
+            await PlayHomologationRoundAsync(setup, roundNumber);
+            factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(16);
+            await ProcessExpiredAsync();
+        }
+
+        await using var context = database.CreateDbContext();
+        var game = await context.Games
+            .Include(savedGame => savedGame.Players)
+            .Include(savedGame => savedGame.Rounds)
+            .SingleAsync();
+        Assert.Equal(GameStatus.Finished, game.Status);
+        Assert.Equal(3, game.Rounds.Count);
+        Assert.All(game.Rounds, round => Assert.Equal(RoundPhase.Completed, round.Phase));
+        Assert.All(game.Players, player => Assert.Equal(3, player.Score));
+    }
+
     [Fact]
     public async Task DuplicateCommandsAndSimultaneousTimeoutRemainIdempotent()
     {
@@ -220,6 +250,52 @@ public sealed class GifVotingAndRankingTests : IDisposable
     {
         factory.Dispose();
         GC.SuppressFinalize(this);
+    }
+
+    private async Task PlayHomologationRoundAsync(PlayerGameSetup setup, int roundNumber)
+    {
+        foreach (var player in setup.Players)
+        {
+            await WithCoordinatorAsync(coordinator => coordinator.SubmitPhraseAsync(
+                setup.Code,
+                player.Id,
+                $"{player.Username} phrase {roundNumber}",
+                CancellationToken.None));
+        }
+
+        await using (var context = database.CreateDbContext())
+        {
+            var phraseIds = await context.Phrases
+                .Where(phrase => phrase.Round.RoundNumber == roundNumber)
+                .ToDictionaryAsync(phrase => phrase.UserId, phrase => phrase.Id);
+            for (var index = 0; index < setup.Players.Count; index++)
+            {
+                var voter = setup.Players[index];
+                var target = setup.Players[(index + 1) % setup.Players.Count];
+                await WithCoordinatorAsync(coordinator => coordinator.VotePhraseAsync(
+                    setup.Code,
+                    voter.Id,
+                    phraseIds[target.Id],
+                    CancellationToken.None));
+            }
+        }
+
+        foreach (var player in setup.Players)
+        {
+            await SubmitGifAsync(setup.Code, player, roundNumber);
+        }
+
+        var gifIds = await LoadGifIdsAsync(roundNumber);
+        for (var index = 0; index < setup.Players.Count; index++)
+        {
+            var voter = setup.Players[index];
+            var target = setup.Players[(index + 1) % setup.Players.Count];
+            await WithCoordinatorAsync(coordinator => coordinator.VoteGifAsync(
+                setup.Code,
+                voter.Id,
+                gifIds[target.Id],
+                CancellationToken.None));
+        }
     }
 
     private async Task PlayRoundAsync(GameSetup setup, int roundNumber)
@@ -328,6 +404,32 @@ public sealed class GifVotingAndRankingTests : IDisposable
         return new(created.Lobby.Code, users[0], users[1]);
     }
 
+    private async Task<PlayerGameSetup> CreateReadyGameAsync(int playerCount)
+    {
+        await database.ResetAsync();
+        var users = Enumerable.Range(1, playerCount)
+            .Select(index => CreateUser($"homologation-{playerCount}-{index}"))
+            .ToArray();
+        await using (var context = database.CreateDbContext())
+        {
+            context.Users.AddRange(users);
+            await context.SaveChangesAsync();
+        }
+
+        var created = await WithGameServiceAsync(service => service.CreateAsync(users[0].Id, 3, CancellationToken.None));
+        foreach (var guest in users.Skip(1))
+        {
+            await WithGameServiceAsync(service => service.JoinAsync(created.Lobby.Code, guest.Id, CancellationToken.None));
+            await WithGameServiceAsync(service => service.SetReadyAsync(
+                created.Lobby.Code,
+                guest.Id,
+                true,
+                CancellationToken.None));
+        }
+
+        return new(created.Lobby.Code, users);
+    }
+
     private async Task<T> WithCoordinatorAsync<T>(Func<GameCoordinator, Task<T>> action)
     {
         await using var scope = factory.Services.CreateAsyncScope();
@@ -362,4 +464,6 @@ public sealed class GifVotingAndRankingTests : IDisposable
         "Powered by KLIPY");
 
     private sealed record GameSetup(string Code, User Host, User Guest);
+
+    private sealed record PlayerGameSetup(string Code, IReadOnlyList<User> Players);
 }
