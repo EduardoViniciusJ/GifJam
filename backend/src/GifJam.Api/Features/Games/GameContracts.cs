@@ -24,11 +24,43 @@ public sealed record LobbySnapshot(
     IReadOnlyList<LobbyPlayerSnapshot> Players,
     DateTimeOffset ServerTime);
 
-public sealed record PlayerGameSnapshot(LobbySnapshot Lobby, bool IsHost);
+public sealed record PlayerGameSnapshot(
+    LobbySnapshot Lobby,
+    bool IsHost,
+    PlayerRoundSnapshot? Round = null);
 
 public sealed record PresencePlayerSnapshot(Guid UserId, bool IsConnected);
 
 public sealed record PresenceSnapshot(
     string Code,
     IReadOnlyList<PresencePlayerSnapshot> Players,
+    DateTimeOffset ServerTime);
+
+public sealed record AnonymousPhraseSnapshot(Guid Id, string Text);
+
+public sealed record PlayerPhraseSnapshot(Guid Id, string Text, bool IsOwn);
+
+public sealed record SelectedPhraseSnapshot(Guid Id, string Text);
+
+public sealed record RoundPhaseSnapshot(
+    int RoundNumber,
+    RoundPhase Phase,
+    DateTimeOffset PhaseEndsAt,
+    IReadOnlyList<AnonymousPhraseSnapshot> Phrases,
+    SelectedPhraseSnapshot? SelectedPhrase,
+    DateTimeOffset ServerTime);
+
+public sealed record PlayerRoundSnapshot(
+    int RoundNumber,
+    RoundPhase Phase,
+    DateTimeOffset PhaseEndsAt,
+    bool HasSubmittedPhrase,
+    bool HasVotedPhrase,
+    IReadOnlyList<PlayerPhraseSnapshot> Phrases,
+    SelectedPhraseSnapshot? SelectedPhrase,
+    DateTimeOffset ServerTime);
+
+public sealed record SubmissionProgressSnapshot(
+    int Completed,
+    int Eligible,
     DateTimeOffset ServerTime);

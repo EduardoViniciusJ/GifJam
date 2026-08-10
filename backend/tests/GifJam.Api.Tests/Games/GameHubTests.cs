@@ -2,7 +2,9 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using GifJam.Api.Domain.Entities;
+using GifJam.Api.Domain.Enums;
 using GifJam.Api.Features.Games;
 using GifJam.Api.Realtime.Contracts;
 using GifJam.Api.Tests.Auth;
@@ -70,6 +72,52 @@ public sealed class GameHubTests(PostgresFixture database)
         Assert.Equal("game_not_found", rejection.Code);
     }
 
+    [Fact]
+    public async Task RoundCommandsEmitPhaseAndSubmissionEvents()
+    {
+        await database.ResetAsync();
+        using var factory = new DiscordAuthFactory(database);
+        var users = await SeedUsersAsync(factory);
+        var hostToken = factory.CreateAccessToken(users[0]);
+        var guestToken = factory.CreateAccessToken(users[1]);
+        using var hostClient = CreateHttpClient(factory, hostToken);
+        using var guestClient = CreateHttpClient(factory, guestToken);
+        using var createResponse = await hostClient.PostAsJsonAsync("/api/games", new CreateGameRequest(3));
+        var created = await createResponse.Content.ReadFromJsonAsync<PlayerGameSnapshot>(JsonOptions)
+            ?? throw new InvalidOperationException("Created game snapshot was missing.");
+        using var joinResponse = await guestClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/join",
+            content: null);
+        joinResponse.EnsureSuccessStatusCode();
+
+        await using var hostHub = CreateHub(factory, hostToken);
+        await using var guestHub = CreateHub(factory, guestToken);
+        var phases = Channel.CreateUnbounded<RoundPhaseSnapshot>();
+        var progressEvents = Channel.CreateUnbounded<SubmissionProgressSnapshot>();
+        hostHub.On<RoundPhaseSnapshot>("PhaseChanged", phase => phases.Writer.TryWrite(phase));
+        hostHub.On<SubmissionProgressSnapshot>("SubmissionProgress", progress => progressEvents.Writer.TryWrite(progress));
+
+        await hostHub.StartAsync();
+        await guestHub.StartAsync();
+        await hostHub.InvokeAsync("SubscribeGame", created.Lobby.Code);
+        await guestHub.InvokeAsync("SubscribeGame", created.Lobby.Code);
+        await guestHub.InvokeAsync("SetReady", created.Lobby.Code, true);
+        await hostHub.InvokeAsync("StartGame", created.Lobby.Code);
+
+        var started = await ReadEventAsync(phases.Reader);
+        Assert.Equal(RoundPhase.PhraseSubmission, started.Phase);
+        await hostHub.InvokeAsync("SubmitPhrase", created.Lobby.Code, "Host phrase");
+        var firstProgress = await ReadEventAsync(progressEvents.Reader);
+        Assert.Equal(1, firstProgress.Completed);
+        await guestHub.InvokeAsync("SubmitPhrase", created.Lobby.Code, "Guest phrase");
+        var secondProgress = await ReadEventAsync(progressEvents.Reader);
+        var voting = await ReadEventAsync(phases.Reader);
+
+        Assert.Equal(2, secondProgress.Completed);
+        Assert.Equal(RoundPhase.PhraseVoting, voting.Phase);
+        Assert.Equal(2, voting.Phrases.Count);
+    }
+
     private async Task<User[]> SeedUsersAsync(DiscordAuthFactory factory)
     {
         await using var context = database.CreateDbContext();
@@ -109,6 +157,9 @@ public sealed class GameHubTests(PostgresFixture database)
             })
             .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
             .Build();
+
+    private static async Task<T> ReadEventAsync<T>(ChannelReader<T> reader) =>
+        await reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
 
     private static JsonSerializerOptions CreateJsonOptions()
     {
