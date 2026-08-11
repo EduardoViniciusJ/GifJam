@@ -42,6 +42,7 @@ try {
         'Discord__ClientSecret=container-smoke-secret'
         "Discord__CallbackUrl=http://127.0.0.1:$Port/api/auth/discord/callback"
         'Klipy__ApiKey=container-smoke-key'
+        'Giphy__ApiKey=container-smoke-giphy-key'
         "Jwt__SigningKey=$('x' * 64)"
         'ApplicationUrls__FrontendUrl=http://localhost:4200'
     )

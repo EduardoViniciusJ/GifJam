@@ -3,6 +3,7 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Integrations.Discord;
+using GifJam.Api.Integrations.Giphy;
 using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
@@ -41,6 +42,7 @@ public sealed class DiscordAuthFactory(
                 ["Jwt:Issuer"] = "GifJam.Tests",
                 ["Jwt:Audience"] = "GifJam.Tests.Client",
                 ["Klipy:ApiKey"] = "test-klipy-key",
+                ["Giphy:ApiKey"] = "test-giphy-key",
                 ["ApplicationUrls:FrontendUrl"] = "https://frontend.test"
             }));
         builder.ConfigureServices(services =>

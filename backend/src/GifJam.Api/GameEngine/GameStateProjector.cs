@@ -205,7 +205,11 @@ public sealed class GameStateProjector(IClock clock)
                 player.Score));
         }
 
-        var completedRounds = game.Rounds.Count(round => round.Phase is RoundPhase.Results or RoundPhase.Completed);
+        var currentRound = game.Rounds.SingleOrDefault(round => round.RoundNumber == game.CurrentRoundNumber);
+        var completedRounds = game.Status == GameStatus.Finished
+            ? game.TotalRounds
+            : Math.Max(0, game.CurrentRoundNumber -
+                (currentRound?.Phase is RoundPhase.Results or RoundPhase.Completed ? 0 : 1));
         return new(game.Code, completedRounds, isFinal, entries, clock.UtcNow);
     }
 

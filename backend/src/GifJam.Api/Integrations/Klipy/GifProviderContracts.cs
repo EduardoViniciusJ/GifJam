@@ -14,7 +14,8 @@ public sealed record GifProviderItem(
     int PreviewWidth,
     int PreviewHeight,
     string SourceUrl,
-    string Attribution);
+    string Attribution,
+    string Provider = "klipy");
 
 public interface IGifProvider
 {

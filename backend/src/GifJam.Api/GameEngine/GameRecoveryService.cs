@@ -1,12 +1,13 @@
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Enums;
+using GifJam.Api.Features.Games.Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 namespace GifJam.Api.GameEngine;
 
 public sealed partial class GameRecoveryService(
     AppDbContext dbContext,
-    GameCoordinator gameCoordinator,
+    IGameRoundService gameCoordinator,
     ILogger<GameRecoveryService> logger)
 {
     public async Task RecoverAsync(CancellationToken cancellationToken)

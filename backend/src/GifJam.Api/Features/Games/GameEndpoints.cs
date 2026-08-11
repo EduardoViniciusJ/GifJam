@@ -1,4 +1,5 @@
 using GifJam.Api.Common.Auth;
+using GifJam.Api.Features.Games.Interfaces;
 
 namespace GifJam.Api.Features.Games;
 
@@ -15,7 +16,7 @@ public static class GameEndpoints
         group.MapPost("/", async (
                 CreateGameRequest request,
                 HttpContext context,
-                GameService gameService,
+                IGameService gameService,
                 CancellationToken cancellationToken) =>
             {
                 var snapshot = await gameService.CreateAsync(
@@ -36,7 +37,7 @@ public static class GameEndpoints
         group.MapPost("/{code}/join", async (
                 string code,
                 HttpContext context,
-                GameService gameService,
+                IGameService gameService,
                 CancellationToken cancellationToken) =>
                 Results.Ok(await gameService.JoinAsync(
                     code,
@@ -54,7 +55,7 @@ public static class GameEndpoints
                 string code,
                 UpdateGameSettingsRequest request,
                 HttpContext context,
-                GameService gameService,
+                IGameService gameService,
                 CancellationToken cancellationToken) =>
                 Results.Ok(await gameService.UpdateSettingsAsync(
                     code,
@@ -76,7 +77,7 @@ public static class GameEndpoints
         group.MapPost("/{code}/leave", async (
                 string code,
                 HttpContext context,
-                GameService gameService,
+                IGameService gameService,
                 CancellationToken cancellationToken) =>
             {
                 await gameService.LeaveAsync(code, context.User.GetRequiredUserId(), cancellationToken);
@@ -91,7 +92,7 @@ public static class GameEndpoints
         group.MapGet("/{code}", async (
                 string code,
                 HttpContext context,
-                GameService gameService,
+                IGameService gameService,
                 CancellationToken cancellationToken) =>
                 Results.Ok(await gameService.GetAsync(
                     code,

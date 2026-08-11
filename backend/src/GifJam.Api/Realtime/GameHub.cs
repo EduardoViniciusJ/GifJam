@@ -1,6 +1,8 @@
 using GifJam.Api.Common.Auth;
 using GifJam.Api.Common.Errors;
 using GifJam.Api.Features.Games;
+using GifJam.Api.Features.Games.Interfaces;
+using GifJam.Api.Features.Games.Services;
 using GifJam.Api.GameEngine;
 using GifJam.Api.Domain.Enums;
 using GifJam.Api.Realtime.Contracts;
@@ -11,15 +13,17 @@ namespace GifJam.Api.Realtime;
 
 [Authorize]
 public sealed partial class GameHub(
-    GameService gameService,
+    IGameService gameService,
     GameCoordinator gameCoordinator,
     GameConnectionRegistry connectionRegistry,
+    SignalRCommandRateLimiter rateLimiter,
     ILogger<GameHub> logger) : Hub<IGameClient>
 {
     public async Task SubscribeGame(string gameCode)
     {
         await ExecuteCommandAsync(async () =>
         {
+            GameHubInputValidator.ValidateGameCode(gameCode);
             var userId = Context.User!.GetRequiredUserId();
             var snapshot = await gameService.ConnectAsync(gameCode, userId, Context.ConnectionAborted);
             await Groups.AddToGroupAsync(
@@ -33,6 +37,7 @@ public sealed partial class GameHub(
 
     public Task SetReady(string gameCode, bool isReady) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameService.SetReadyAsync(gameCode, userId, isReady, Context.ConnectionAborted);
     });
@@ -41,26 +46,33 @@ public sealed partial class GameHub(
         string gameCode,
         int totalRounds,
         int phraseSubmissionSeconds,
-        int resultsSeconds) => ExecuteCommandAsync(async () =>
-    {
-        var userId = Context.User!.GetRequiredUserId();
-        await gameService.UpdateSettingsAsync(
-            gameCode,
-            userId,
-            totalRounds,
-            phraseSubmissionSeconds,
-            resultsSeconds,
-            Context.ConnectionAborted,
-            GameMode.Classic);
-    });
+        int resultsSeconds) => UpdateGameSettingsCore(
+        gameCode,
+        totalRounds,
+        phraseSubmissionSeconds,
+        resultsSeconds,
+        GameMode.Classic);
 
     public Task UpdateGameSettingsWithMode(
         string gameCode,
         int totalRounds,
         int phraseSubmissionSeconds,
         int resultsSeconds,
+        GameMode mode) => UpdateGameSettingsCore(
+        gameCode,
+        totalRounds,
+        phraseSubmissionSeconds,
+        resultsSeconds,
+        mode);
+
+    private Task UpdateGameSettingsCore(
+        string gameCode,
+        int totalRounds,
+        int phraseSubmissionSeconds,
+        int resultsSeconds,
         GameMode mode) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameService.UpdateSettingsAsync(
             gameCode,
@@ -74,6 +86,7 @@ public sealed partial class GameHub(
 
     public Task RequestSync(string gameCode) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         var snapshot = await gameService.GetAsync(gameCode, userId, Context.ConnectionAborted);
         await Clients.Caller.StateSynced(snapshot);
@@ -81,36 +94,44 @@ public sealed partial class GameHub(
 
     public Task StartGame(string gameCode) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.StartGameAsync(gameCode, userId, Context.ConnectionAborted);
     });
 
     public Task SubmitPhrase(string gameCode, string text) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
+        GameHubInputValidator.ValidatePhrase(text);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.SubmitPhraseAsync(gameCode, userId, text, Context.ConnectionAborted);
     });
 
     public Task VotePhrase(string gameCode, Guid phraseId) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.VotePhraseAsync(gameCode, userId, phraseId, Context.ConnectionAborted);
     });
 
     public Task SubmitGif(string gameCode, string selectionToken) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
+        GameHubInputValidator.ValidateSelectionToken(selectionToken);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.SubmitGifAsync(gameCode, userId, selectionToken, Context.ConnectionAborted);
     });
 
     public Task VoteGif(string gameCode, Guid gifSubmissionId) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.VoteGifAsync(gameCode, userId, gifSubmissionId, Context.ConnectionAborted);
     });
 
     public Task SetResultsReady(string gameCode) => ExecuteCommandAsync(async () =>
     {
+        GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
         await gameCoordinator.SetResultsReadyAsync(gameCode, userId, Context.ConnectionAborted);
     });
@@ -136,9 +157,19 @@ public sealed partial class GameHub(
     {
         try
         {
+            var userId = Context.User!.GetRequiredUserId().ToString();
+            using var lease = await rateLimiter.AcquireAsync(userId, Context.ConnectionAborted);
+            if (!lease.IsAcquired)
+            {
+                await Clients.Caller.CommandRejected(new(
+                    "rate_limited",
+                    "Você está fazendo ações rápido demais. Tente novamente em instantes."));
+                return;
+            }
+
             await command();
         }
-        catch (ApiException exception)
+        catch (AppException exception)
         {
             await Clients.Caller.CommandRejected(new(exception.Code, UserMessageFor(exception.Code)));
         }

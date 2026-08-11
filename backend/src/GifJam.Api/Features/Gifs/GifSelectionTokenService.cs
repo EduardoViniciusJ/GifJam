@@ -22,7 +22,7 @@ public sealed class GifSelectionTokenService(
     {
         var payload = new GifSelectionPayload(
             gameCode,
-            "klipy",
+            item.Provider,
             item.ExternalId,
             item.Description,
             item.PreviewUrl,
@@ -89,7 +89,7 @@ public sealed class GifSelectionTokenService(
         }
 
         if (!string.Equals(payload.GameCode, expectedGameCode, StringComparison.Ordinal) ||
-            !string.Equals(payload.Provider, "klipy", StringComparison.Ordinal))
+            (payload.Provider is not "klipy" and not "giphy"))
         {
             throw InvalidToken();
         }

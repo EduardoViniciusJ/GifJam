@@ -13,13 +13,13 @@ public sealed partial class GlobalExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
-        var apiException = exception as ApiException;
-        var statusCode = apiException?.StatusCode ?? StatusCodes.Status500InternalServerError;
-        var code = apiException?.Code ?? "internal_error";
+        var appException = exception as AppException;
+        var statusCode = appException?.StatusCode ?? StatusCodes.Status500InternalServerError;
+        var code = appException?.Code ?? "internal_error";
         const string detail = "The request could not be completed.";
 
         var traceId = TraceContext.GetTraceId(httpContext);
-        if (apiException is null)
+        if (appException is null)
         {
             LogUnhandledRequest(logger, exception, traceId);
         }

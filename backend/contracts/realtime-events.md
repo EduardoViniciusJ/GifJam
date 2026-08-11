@@ -15,7 +15,7 @@ Authentication: JWT bearer token supplied through SignalR's `accessTokenFactory`
 | `StartGame` | `gameCode` | Starts a ready lobby; host only. |
 | `SubmitPhrase` | `gameCode`, `text` | Stores one phrase during `PhraseSubmission`. |
 | `VotePhrase` | `gameCode`, `phraseId` | Stores one non-self phrase vote during `PhraseVoting`. |
-| `SubmitGif` | `gameCode`, `selectionToken` | Stores or replaces a server-signed KLIPY selection during `GifSubmission`. |
+| `SubmitGif` | `gameCode`, `selectionToken` | Stores or replaces a server-signed KLIPY or GIPHY selection during `GifSubmission`. |
 | `VoteGif` | `gameCode`, `gifSubmissionId` | Stores one non-self GIF vote after the five-second-per-GIF presentation finishes. |
 | `SetResultsReady` | `gameCode` | Confirms that the player finished viewing the reveal; all connected players advance early. |
 

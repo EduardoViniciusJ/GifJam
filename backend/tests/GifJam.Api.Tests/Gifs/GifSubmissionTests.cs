@@ -35,7 +35,7 @@ public sealed class GifSubmissionTests(PostgresFixture database)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var item = Assert.Single(Assert.IsType<GifSearchResponse>(payload).Items);
         Assert.Equal("gif-1", item.Id);
-        Assert.Equal("Search KLIPY", payload.SearchPlaceholder);
+        Assert.Equal("Search KLIPY + GIPHY", payload.SearchPlaceholder);
         Assert.NotEmpty(item.SelectionToken);
         Assert.DoesNotContain("test-klipy-key", rawJson, StringComparison.Ordinal);
         Assert.Equal("feliz", provider.LastQuery);

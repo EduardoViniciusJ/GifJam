@@ -17,6 +17,7 @@ public sealed class GifJamApiFactory : WebApplicationFactory<Program>
                 ["Discord:CallbackUrl"] = "https://localhost/api/auth/discord/callback",
                 ["Jwt:SigningKey"] = new string('t', 64),
                 ["Klipy:ApiKey"] = "test-klipy-key",
+                ["Giphy:ApiKey"] = "test-giphy-key",
                 ["ApplicationUrls:FrontendUrl"] = "https://frontend.test"
             }));
     }

@@ -1,23 +1,25 @@
 # Backend deployment runbook
 
-## Current target
+## Target
 
-- Azure Container Apps in `brazilsouth`.
-- One active revision and at most one replica because game locks are process-local.
-- Scale to zero outside active HTTP/SignalR traffic.
-- Azure Container Registry with administrative credentials disabled.
-- User-assigned managed identity with only the `AcrPull` role.
-- Neon pooled connection for the API and direct connection only for migrations.
+- Hostinger Linux VPS running the existing Docker image.
+- One VPS and one API container for the MVP because game locks are process-local.
+- Neon Free as the PostgreSQL provider.
+- Vercel as the frontend provider.
+- HTTPS required for Discord OAuth and SignalR.
 
 ## Preconditions
 
-1. Rotate every credential previously shared in chat or screenshots.
-2. Create a production Discord application and a production KLIPY key.
+1. Rotate every credential previously shared in chat, screenshots, or committed files.
+2. Create a production Discord application, a production KLIPY key, and request the appropriate GIPHY production access for the planned traffic.
 3. Configure the KLIPY Partner Panel content filter and attribution requirements.
-4. Install Azure CLI, run `az login`, and select a subscription with billing enabled.
-5. Choose the final HTTPS frontend origin and, if used, the custom API domain.
+4. Create the Hostinger VPS with Ubuntu 24.04 LTS and Docker.
+5. Register `gifjam.com.br` and point its DNS record to the VPS public IP.
+6. Confirm the final Vercel frontend origin before configuring CORS and Discord OAuth.
 
 ## Database
+
+Keep PostgreSQL on Neon for the first VPS deployment. Do not expose port `5432` publicly and do not use the local development PostgreSQL service in production.
 
 Apply migrations through the direct Neon endpoint. The command requires an explicit remote confirmation and restores process environment variables when it finishes.
 
@@ -27,29 +29,27 @@ Apply migrations through the direct Neon endpoint. The command requires an expli
 
 The running API receives `ConnectionStrings__Neon`, which should use the pooled Neon endpoint.
 
-## Azure
+## Hostinger VPS deployment checklist
 
-The deployment script creates an ACR Basic registry, builds the API image remotely, creates the Container Apps environment, and deploys the application. Secret values are loaded from the ignored `backend/.env`, passed as secure ARM parameters through a temporary file, and stored as Container Apps secrets.
+1. Copy the VPS public IP from the Hostinger panel.
+2. Allow inbound TCP 22 only for administration, and allow TCP 80 and 443 for web traffic.
+3. Keep application port `8080` and PostgreSQL port `5432` private.
+4. Connect with the configured SSH key.
+5. Install Docker Engine and the Docker Compose plugin if the VPS template did not install them.
+6. Clone the repository into a server directory.
+7. Create a server-side production `.env`; never commit it.
+8. Build the API image from `backend/src/GifJam.Api/Dockerfile`.
+9. Run one API container with restart enabled and bind it to `127.0.0.1:8080`.
+10. Put Caddy or Nginx in front of the container and issue an HTTPS certificate for `gifjam.com.br`.
+11. Keep one API replica until distributed locking is introduced.
 
-```powershell
-.\scripts\Deploy-Azure.ps1 `
-  -SubscriptionId '<subscription-id>' `
-  -RegistryName '<globally-unique-acr-name>' `
-  -FrontendUrl 'https://app.example.com' `
-  -ConfirmProductionCredentials
-```
-
-Without `-DiscordCallbackUrl`, Bicep derives the callback from the generated Container Apps domain and the script prints the exact URL to register in Discord. Pass the parameter only when a custom API domain already exists.
-
-`minReplicas` is `0`, `maxReplicas` is `1`, insecure ingress is disabled, and startup/liveness/readiness probes use `/health/live` and `/health/ready`.
+The production environment should contain `ASPNETCORE_ENVIRONMENT=Production`, `ASPNETCORE_HTTP_PORTS=8080`, the Neon connection strings, the production Discord callback, the frontend origin, and the server-side API keys, including `Klipy__ApiKey` and `Giphy__ApiKey`. Do not copy local `POSTGRES_*` values into production when using Neon.
 
 ## Smoke test
 
-Run public checks first. After completing Discord OAuth, pass a short-lived JWT to verify the authenticated profile, room creation, SignalR negotiation, and WebSocket handshake.
-
 ```powershell
-.\scripts\Smoke-Backend.ps1 -BaseUrl 'https://<container-app-fqdn>'
-.\scripts\Smoke-Backend.ps1 -BaseUrl 'https://<container-app-fqdn>' -AccessToken '<jwt>'
+.\scripts\Smoke-Backend.ps1 -BaseUrl 'https://gifjam.com.br'
+.\scripts\Smoke-Backend.ps1 -BaseUrl 'https://gifjam.com.br' -AccessToken '<jwt>'
 ```
 
 Before publishing, the same public smoke test can run against the final Docker image and local PostgreSQL without using external Discord or KLIPY secrets:
@@ -59,12 +59,11 @@ docker build -f src/GifJam.Api/Dockerfile -t gifjam-api:stage10 .
 .\scripts\Test-Container.ps1
 ```
 
-Complete one three-round game with 2, 3, and 6 browser sessions. During `GifSubmission`, confirm that search returns real KLIPY results and attribution without exposing the API key. Automated integration tests exercise the same player counts and scoring rules before deployment.
-
 ## Final checks
 
-- Confirm the Discord redirect URL matches exactly.
-- Confirm CORS accepts only the production frontend origin.
-- Inspect Container Apps logs for redacted secrets and trace IDs.
+- Confirm the Discord redirect URL matches exactly: `https://gifjam.com.br/api/auth/discord/callback`.
+- Confirm CORS accepts only `https://gif-jam.vercel.app` until a custom frontend domain is configured.
+- Confirm Neon migrations completed successfully.
+- Verify SignalR negotiation and WebSocket connection over HTTPS.
 - Verify records older than 24 hours are removed by the cleanup worker.
-- Keep a single API replica until distributed locking is introduced.
+- Check VPS CPU, memory, disk, and container restart status.

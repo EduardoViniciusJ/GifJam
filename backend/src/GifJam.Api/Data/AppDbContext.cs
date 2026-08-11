@@ -23,6 +23,10 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
     public DbSet<GifVote> GifVotes => Set<GifVote>();
 
+    public DbSet<MatchmakingBatch> MatchmakingBatches => Set<MatchmakingBatch>();
+
+    public DbSet<MatchmakingTicket> MatchmakingTickets => Set<MatchmakingTicket>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);

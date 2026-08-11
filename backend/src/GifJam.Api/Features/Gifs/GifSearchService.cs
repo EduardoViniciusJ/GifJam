@@ -1,6 +1,7 @@
 using GifJam.Api.Common.Errors;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Enums;
+using GifJam.Api.Integrations.Giphy;
 using GifJam.Api.Integrations.Klipy;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,7 +30,7 @@ public sealed partial class GifSearchService(
                 StatusCodes.Status400BadRequest);
         }
 
-        if (cursor?.Length > 256)
+        if (cursor?.Length > 512)
         {
             throw new ApiException(
                 "invalid_gif_cursor",
@@ -74,7 +75,7 @@ public sealed partial class GifSearchService(
                 item.SourceUrl,
                 item.Attribution,
                 tokenService.Create(normalizedCode, item))).ToArray();
-            return new(items, result.NextCursor, "Search KLIPY", "Powered by KLIPY");
+            return new(items, result.NextCursor, "Search KLIPY + GIPHY", "Powered by KLIPY and GIPHY");
         }
         catch (GifProviderUnavailableException exception)
         {
@@ -83,6 +84,13 @@ public sealed partial class GifSearchService(
                 "gif_provider_unavailable",
                 "GIF search is temporarily unavailable. Try again shortly.",
                 StatusCodes.Status503ServiceUnavailable);
+        }
+        catch (GiphyCursorException)
+        {
+            throw new ApiException(
+                "invalid_gif_cursor",
+                "The GIF search cursor is invalid.",
+                StatusCodes.Status400BadRequest);
         }
     }
 

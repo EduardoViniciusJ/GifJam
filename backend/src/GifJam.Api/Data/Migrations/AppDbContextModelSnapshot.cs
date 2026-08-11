@@ -252,6 +252,72 @@ namespace GifJam.Api.Data.Migrations
                     b.ToTable("gif_votes", (string)null);
                 });
 
+            modelBuilder.Entity("GifJam.Api.Domain.Entities.MatchmakingBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeadlineAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GameId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("MatchedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("Status", "DeadlineAt");
+
+                    b.ToTable("matchmaking_batches", (string)null);
+                });
+
+            modelBuilder.Entity("GifJam.Api.Domain.Entities.MatchmakingTicket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId", "JoinedAt");
+
+                    b.HasIndex("UserId", "Status")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Waiting'");
+
+                    b.ToTable("matchmaking_tickets", (string)null);
+                });
+
             modelBuilder.Entity("GifJam.Api.Domain.Entities.Phrase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -492,6 +558,35 @@ namespace GifJam.Api.Data.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("GifJam.Api.Domain.Entities.MatchmakingBatch", b =>
+                {
+                    b.HasOne("GifJam.Api.Domain.Entities.Game", "Game")
+                        .WithMany()
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Game");
+                });
+
+            modelBuilder.Entity("GifJam.Api.Domain.Entities.MatchmakingTicket", b =>
+                {
+                    b.HasOne("GifJam.Api.Domain.Entities.MatchmakingBatch", "Batch")
+                        .WithMany("Tickets")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GifJam.Api.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("GifJam.Api.Domain.Entities.Phrase", b =>
                 {
                     b.HasOne("GifJam.Api.Domain.Entities.Round", "Round")
@@ -565,6 +660,11 @@ namespace GifJam.Api.Data.Migrations
             modelBuilder.Entity("GifJam.Api.Domain.Entities.GifSubmission", b =>
                 {
                     b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("GifJam.Api.Domain.Entities.MatchmakingBatch", b =>
+                {
+                    b.Navigation("Tickets");
                 });
 
             modelBuilder.Entity("GifJam.Api.Domain.Entities.Phrase", b =>

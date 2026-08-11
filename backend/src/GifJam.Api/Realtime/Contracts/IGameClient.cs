@@ -1,4 +1,5 @@
 using GifJam.Api.Features.Games;
+using GifJam.Api.Features.Matchmaking;
 
 namespace GifJam.Api.Realtime.Contracts;
 
@@ -21,6 +22,10 @@ public interface IGameClient
     Task GameFinished(GameFinishedSnapshot game);
 
     Task CommandRejected(CommandRejectedMessage rejection);
+
+    Task MatchmakingUpdated(MatchmakingSnapshot snapshot);
+
+    Task MatchFound(MatchFoundSnapshot snapshot);
 }
 
 public sealed record CommandRejectedMessage(string Code, string Message, string? CurrentPhase = null);

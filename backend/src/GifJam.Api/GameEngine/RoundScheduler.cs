@@ -1,3 +1,5 @@
+using GifJam.Api.Features.Games.Interfaces;
+
 namespace GifJam.Api.GameEngine;
 
 public sealed partial class RoundScheduler(
@@ -11,7 +13,7 @@ public sealed partial class RoundScheduler(
             try
             {
                 await using var scope = scopeFactory.CreateAsyncScope();
-                var coordinator = scope.ServiceProvider.GetRequiredService<GameCoordinator>();
+                var coordinator = scope.ServiceProvider.GetRequiredService<IGameRoundService>();
                 await coordinator.ProcessExpiredRoundsAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

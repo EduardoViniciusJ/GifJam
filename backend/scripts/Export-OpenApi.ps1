@@ -13,6 +13,7 @@ $defaults = @{
     "Discord__ClientSecret" = "openapi-secret"
     "Discord__CallbackUrl" = "https://localhost/api/auth/discord/callback"
     "Klipy__ApiKey" = "openapi-klipy-key"
+    "Giphy__ApiKey" = "openapi-giphy-key"
     "Jwt__SigningKey" = ("o" * 64)
     "ApplicationUrls__FrontendUrl" = "https://frontend.example"
 }

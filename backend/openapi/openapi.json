@@ -581,6 +581,99 @@
         }
       }
     },
+    "/api/matchmaking/join": {
+      "post": {
+        "tags": [
+          "Matchmaking"
+        ],
+        "operationId": "JoinMatchmaking",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakingSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchmaking/leave": {
+      "post": {
+        "tags": [
+          "Matchmaking"
+        ],
+        "operationId": "LeaveMatchmaking",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/matchmaking/status": {
+      "get": {
+        "tags": [
+          "Matchmaking"
+        ],
+        "operationId": "GetMatchmakingStatus",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MatchmakingSnapshot"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ranking": {
       "get": {
         "tags": [
@@ -915,6 +1008,57 @@
           }
         },
         "additionalProperties": false
+      },
+      "MatchmakingSnapshot": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/MatchmakingStatus"
+          },
+          "playerCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "minimumPlayers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "maximumPlayers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hostUserId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "deadlineAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "gameCode": {
+            "type": "string",
+            "nullable": true
+          },
+          "gameMode": {
+            "$ref": "#/components/schemas/GameMode"
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "MatchmakingStatus": {
+        "enum": [
+          0,
+          1,
+          2
+        ],
+        "type": "integer",
+        "format": "int32"
       },
       "PhraseSource": {
         "enum": [
@@ -1384,6 +1528,9 @@
     },
     {
       "name": "GIFs"
+    },
+    {
+      "name": "Matchmaking"
     },
     {
       "name": "Ranking"
