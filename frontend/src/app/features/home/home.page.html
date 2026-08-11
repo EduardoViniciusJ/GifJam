@@ -77,11 +77,29 @@
           </form>
         </div>
 
-        @if (!isAuthenticated()) {
-          <button class="button button--discord button--large" type="button" (click)="login()">
-            <ng-icon name="lucideLogIn" aria-hidden="true" />
-            Entrar com Discord
-          </button>
+        <button
+          class="button button--outline button--large matchmaking-button"
+          type="button"
+          [disabled]="isAuthenticated() && matchmaking.loading()"
+          (click)="enterMatchmaking()"
+        >
+          @if (isAuthenticated() && matchmaking.loading()) {
+            <ng-icon name="lucideLoaderCircle" class="button-spinner" aria-hidden="true" />
+          } @else if (isAuthenticated() && matchmaking.isWaiting()) {
+            <ng-icon name="lucideLogOut" aria-hidden="true" />
+            Sair da fila
+          } @else {
+            <ng-icon name="lucideUsers" aria-hidden="true" />
+            Entrar na fila
+          }
+        </button>
+
+        @if (isAuthenticated() && matchmaking.isWaiting()) {
+          <div class="matchmaking-status" aria-label="Status da fila">
+            <strong>{{ matchmaking.queuePlayerLabel() }}</strong>
+            <span class="matchmaking-status__separator" aria-hidden="true">•</span>
+            <span>{{ matchmaking.queueTimingLabel() }}</span>
+          </div>
         }
       </div>
     </section>

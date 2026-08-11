@@ -3,7 +3,9 @@ import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 
+import { AuthService } from '@core/auth/auth.service';
 import { SessionTokenService } from '@core/auth/session-token.service';
+import { MatchmakingSnapshot } from '@features/matchmaking/data/matchmaking.models';
 
 import { HomePage } from './home.page';
 
@@ -13,6 +15,8 @@ describe('HomePage', () => {
       imports: [HomePage],
       providers: [provideHttpClient(), provideRouter([])],
     }).compileComponents();
+
+    TestBed.inject(SessionTokenService).clear();
   });
 
   it('normalizes the room code to five uppercase characters', async () => {
@@ -76,4 +80,87 @@ describe('HomePage', () => {
 
     expect(fixture.nativeElement.textContent).toContain('Ranking');
   });
+
+  it('shows the matchmaking button and starts login for logged-out visitors', async () => {
+    const fixture = TestBed.createComponent(HomePage);
+    const auth = TestBed.inject(AuthService);
+    const startLogin = vi.spyOn(auth, 'startDiscordLogin').mockImplementation(() => undefined);
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const button = fixture.nativeElement.querySelector('.matchmaking-button') as HTMLButtonElement;
+    expect(button.textContent).toContain('Entrar na fila');
+
+    button.click();
+
+    expect(startLogin).toHaveBeenCalledWith('/');
+  });
+
+  it('enters matchmaking directly for logged-in visitors', async () => {
+    TestBed.inject(SessionTokenService).set('test-token', {
+      id: 'user-id',
+      discordId: 'discord-id',
+      username: 'player',
+      displayName: 'Player',
+      avatarUrl: null,
+    });
+
+    const fixture = TestBed.createComponent(HomePage);
+    const matchmaking = fixture.componentInstance.matchmaking;
+    const toggleQueue = vi.spyOn(matchmaking, 'toggleQueue').mockResolvedValue();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    fixture.componentInstance.enterMatchmaking();
+
+    expect(toggleQueue).toHaveBeenCalledOnce();
+  });
+
+  it('shows the player count while waiting for another player', () => {
+    authenticate();
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.componentInstance.matchmaking.snapshot.set(waitingSnapshot(1, null));
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector('.matchmaking-status') as HTMLElement;
+    expect(status.textContent).toContain('1 jogador na fila');
+    expect(status.textContent).toContain('Aguardando outro jogador');
+  });
+
+  it('shows the countdown after the second player joins', () => {
+    authenticate();
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.componentInstance.matchmaking.snapshot.set(
+      waitingSnapshot(2, new Date(Date.now() + 30_000).toISOString()),
+    );
+    fixture.detectChanges();
+
+    const status = fixture.nativeElement.querySelector('.matchmaking-status') as HTMLElement;
+    expect(status.textContent).toContain('2 jogadores na fila');
+    expect(status.textContent).toMatch(/Partida em (30|31)s/);
+  });
 });
+
+function authenticate(): void {
+  TestBed.inject(SessionTokenService).set('test-token', {
+    id: 'user-id',
+    discordId: 'discord-id',
+    username: 'player',
+    displayName: 'Player',
+    avatarUrl: null,
+  });
+}
+
+function waitingSnapshot(playerCount: number, deadlineAt: string | null): MatchmakingSnapshot {
+  return {
+    status: 'Waiting',
+    playerCount,
+    minimumPlayers: 2,
+    maximumPlayers: 6,
+    hostUserId: 'user-id',
+    deadlineAt,
+    gameCode: null,
+    gameMode: null,
+    serverTime: new Date().toISOString(),
+  };
+}

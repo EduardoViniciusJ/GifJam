@@ -15,7 +15,6 @@ import {
   LobbySnapshot,
   PlayerGameSnapshot,
   PresenceSnapshot,
-  SubmissionProgressSnapshot,
 } from './game.models';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -24,7 +23,6 @@ export interface GameRealtimeHandlers {
   stateSynced: (snapshot: PlayerGameSnapshot) => void;
   lobbyUpdated: (lobby: LobbySnapshot) => void;
   presenceChanged: (presence: PresenceSnapshot) => void;
-  submissionProgressChanged: (progress: SubmissionProgressSnapshot) => void;
   commandRejected: (rejection: CommandRejectedMessage) => void;
   gameStateChanged: () => void;
 }
@@ -34,11 +32,28 @@ export class GameRealtimeService {
   private readonly session = inject(SessionTokenService);
   private connection: HubConnection | null = null;
   private gameCode = '';
+  private connectionOperation: Promise<void> | null = null;
 
   readonly state = signal<RealtimeState>('disconnected');
   readonly lastCommandRejected = signal<CommandRejectedMessage | null>(null);
 
   async connect(gameCode: string, handlers: GameRealtimeHandlers): Promise<void> {
+    if (this.connectionOperation) {
+      return this.connectionOperation;
+    }
+
+    const operation = this.connectInternal(gameCode, handlers);
+    this.connectionOperation = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.connectionOperation === operation) {
+        this.connectionOperation = null;
+      }
+    }
+  }
+
+  private async connectInternal(gameCode: string, handlers: GameRealtimeHandlers): Promise<void> {
     await this.stop();
     this.gameCode = gameCode;
     this.lastCommandRejected.set(null);
@@ -53,27 +68,29 @@ export class GameRealtimeService {
     connection.on('StateSynced', handlers.stateSynced);
     connection.on('LobbyUpdated', handlers.lobbyUpdated);
     connection.on('PresenceChanged', handlers.presenceChanged);
-    connection.on('SubmissionProgress', handlers.submissionProgressChanged);
     connection.on('CommandRejected', (rejection) => {
       this.lastCommandRejected.set(rejection);
       handlers.commandRejected(rejection);
     });
     connection.on('PhaseChanged', handlers.gameStateChanged);
-    connection.on('SubmissionProgress', handlers.gameStateChanged);
     connection.on('RoundRevealed', handlers.gameStateChanged);
     connection.on('RankingUpdated', handlers.gameStateChanged);
     connection.on('GameFinished', handlers.gameStateChanged);
     connection.onreconnecting(() => this.state.set('reconnecting'));
     connection.onreconnected(async () => {
       this.state.set('connected');
-      await connection.invoke('SubscribeGame', this.gameCode);
+      try {
+        await this.subscribeAndSync(connection, this.gameCode);
+      } catch {
+        this.state.set('reconnecting');
+      }
     });
     connection.onclose(() => this.state.set('disconnected'));
 
     this.connection = connection;
     await connection.start();
     this.state.set('connected');
-    await connection.invoke('SubscribeGame', gameCode);
+    await this.subscribeAndSync(connection, gameCode);
   }
 
   setReady(gameCode: string, isReady: boolean): Promise<void> {
@@ -161,5 +178,10 @@ export class GameRealtimeService {
     }
 
     await this.connection.invoke(method, ...args);
+  }
+
+  private async subscribeAndSync(connection: HubConnection, gameCode: string): Promise<void> {
+    await connection.invoke('SubscribeGame', gameCode);
+    await connection.invoke('RequestSync', gameCode);
   }
 }

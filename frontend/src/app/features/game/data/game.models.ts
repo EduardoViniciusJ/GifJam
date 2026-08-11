@@ -40,12 +40,6 @@ export interface PresenceSnapshot {
   serverTime: string;
 }
 
-export interface SubmissionProgressSnapshot {
-  completed: number;
-  eligible: number;
-  serverTime: string;
-}
-
 export interface CommandRejectedMessage {
   code: string;
   message: string;

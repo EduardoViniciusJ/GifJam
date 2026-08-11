@@ -23,7 +23,12 @@ export const problemDetailsInterceptor: HttpInterceptorFn = (request, next) =>
   );
 
 function isProblemDetails(value: unknown): value is ProblemDetails {
-  return typeof value === 'object' && value !== null;
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+
+  const problem = value as ProblemDetails;
+  return typeof problem.title === 'string' && typeof problem.detail === 'string';
 }
 
 function fallbackMessage(status: number): string {

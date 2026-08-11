@@ -7,8 +7,8 @@ import { lucideArrowLeft, lucideTrophy } from '@ng-icons/lucide';
 import { catchError, Observable, of } from 'rxjs';
 
 import { BrandComponent } from '@shared/ui/brand/brand.component';
-import { GlobalRankingSnapshot } from '@core/games/game.models';
-import { RankingApiService } from '@core/ranking/ranking-api.service';
+import { GlobalRankingSnapshot } from '@features/game/data/game.models';
+import { RankingApiService } from '@features/ranking/data/ranking-api.service';
 
 @Component({
   selector: 'app-ranking-page',

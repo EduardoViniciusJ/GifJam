@@ -1,27 +1,17 @@
 import { Injectable, computed, signal } from '@angular/core';
 
-import { SessionUser } from '@core/auth/auth.models';
-
-import {
-  LobbySnapshot,
-  PlayerGameSnapshot,
-  PresenceSnapshot,
-  SubmissionProgressSnapshot,
-} from './game.models';
+import { LobbySnapshot, PlayerGameSnapshot, PresenceSnapshot } from '../data/game.models';
 
 @Injectable()
 export class GameStore {
   private readonly snapshotState = signal<PlayerGameSnapshot | null>(null);
-  private readonly progressState = signal<SubmissionProgressSnapshot | null>(null);
 
   readonly snapshot = this.snapshotState.asReadonly();
   readonly lobby = computed(() => this.snapshotState()?.lobby ?? null);
   readonly round = computed(() => this.snapshotState()?.round ?? null);
-  readonly submissionProgress = this.progressState.asReadonly();
 
   setSnapshot(snapshot: PlayerGameSnapshot): void {
     this.snapshotState.set(snapshot);
-    this.progressState.set(null);
   }
 
   setLobby(lobby: LobbySnapshot): void {
@@ -52,15 +42,5 @@ export class GameStore {
         },
       };
     });
-  }
-
-  setSubmissionProgress(progress: SubmissionProgressSnapshot): void {
-    this.progressState.set(progress);
-  }
-
-  currentPlayer(user: SessionUser | null) {
-    return computed(
-      () => this.lobby()?.players.find((player) => player.userId === user?.id) ?? null,
-    );
   }
 }

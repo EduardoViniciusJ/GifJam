@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 
-import { GlobalRankingSnapshot } from '@core/games/game.models';
+import { GlobalRankingSnapshot } from '@features/game/data/game.models';
 import { apiUrl } from '@core/http/api-url';
 
 @Injectable({ providedIn: 'root' })

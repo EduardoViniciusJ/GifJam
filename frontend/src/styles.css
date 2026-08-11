@@ -181,15 +181,9 @@ ng-icon {
   color: #ffffff;
 }
 
-.button--header:hover,
-.button--discord:hover {
+.button--header:hover {
   border-color: var(--brand);
   background: #18212e;
-}
-
-.button--discord {
-  border-color: #64748b;
-  color: #ffffff;
 }
 
 .session-profile,
@@ -301,7 +295,7 @@ ng-icon {
 }
 
 .hero__content {
-  width: min(calc(100% - 48px), 760px);
+  width: min(calc(100% - 48px), 800px);
   padding: 48px 0 56px;
   color: #ffffff;
   text-align: center;
@@ -339,14 +333,15 @@ ng-icon {
 }
 
 .hero__actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 360px) auto minmax(0, 360px);
   align-items: center;
   justify-content: center;
   gap: 18px;
 }
 
 .hero__actions > .button {
-  width: 250px;
+  width: 100%;
 }
 
 .hero__or {
@@ -358,7 +353,7 @@ ng-icon {
 
 .room-code {
   position: relative;
-  width: 360px;
+  width: 100%;
   text-align: left;
 }
 
@@ -432,8 +427,27 @@ ng-icon {
   font-size: 12px;
 }
 
-.hero__content > .button--discord {
-  margin-top: 24px;
+.matchmaking-button {
+  margin: 24px auto 0;
+}
+
+.matchmaking-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  margin: 12px auto 0;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.matchmaking-status strong {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.matchmaking-status__separator {
+  color: var(--brand);
 }
 
 .round-flow {
@@ -1070,30 +1084,6 @@ ng-icon {
   color: #3f6f52;
 }
 
-.phase-progress {
-  display: grid;
-  gap: 8px;
-  margin: -8px 0 22px;
-  color: #64748b;
-  font-size: 13px;
-}
-
-.phase-progress__bar {
-  display: block;
-  height: 8px;
-  overflow: hidden;
-  border-radius: 9999px;
-  background: #e2e8f0;
-}
-
-.phase-progress__bar i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: var(--brand-strong);
-  transition: width 200ms ease;
-}
-
 .phrase-options {
   display: grid;
   gap: 12px;
@@ -1265,9 +1255,22 @@ ng-icon {
   color: #166534;
 }
 
+.gif-results-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.gif-results-count,
+.gif-results-end {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .load-more {
-  display: block;
-  margin: 18px auto 0;
+  margin: 0 auto;
 }
 
 .gif-submit {
@@ -1894,13 +1897,14 @@ ng-icon {
   }
 
   .hero__actions {
+    display: flex;
     flex-direction: column;
     gap: 10px;
   }
 
   .hero__actions > .button,
   .room-code,
-  .hero__content > .button--discord {
+  .matchmaking-button {
     width: min(100%, 360px);
   }
 
@@ -1908,8 +1912,13 @@ ng-icon {
     height: 14px;
   }
 
-  .hero__content > .button--discord {
+  .matchmaking-button {
     margin-top: 16px;
+  }
+
+  .matchmaking-status {
+    flex-wrap: wrap;
+    row-gap: 4px;
   }
 
   .round-flow {
@@ -2177,6 +2186,20 @@ ng-icon {
   .gif-submit {
     width: 100%;
     justify-content: center;
+  }
+
+  .gif-results-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .gif-results-count,
+  .gif-results-end {
+    text-align: center;
+  }
+
+  .gif-results-footer .load-more {
+    width: 100%;
   }
 
   .phrase-option {

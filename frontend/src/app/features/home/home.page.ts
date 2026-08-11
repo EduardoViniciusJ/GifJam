@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  OnDestroy,
+  OnInit,
+  inject,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -8,6 +15,7 @@ import {
   lucideCrown,
   lucideLogIn,
   lucideLogOut,
+  lucideLoaderCircle,
   lucideMessageSquare,
   lucideSmile,
   lucideTrophy,
@@ -17,16 +25,21 @@ import {
 
 import { BrandComponent } from '@shared/ui/brand/brand.component';
 import { AuthService } from '@core/auth/auth.service';
+import { MatchmakingRealtimeService } from '@features/matchmaking/data/matchmaking-realtime.service';
+import { MatchmakingFacade } from '@features/matchmaking/state/matchmaking.facade';
 
 @Component({
   selector: 'app-home-page',
   imports: [BrandComponent, NgIcon, ReactiveFormsModule, RouterLink],
   providers: [
+    MatchmakingRealtimeService,
+    MatchmakingFacade,
     provideIcons({
       lucideArrowRight,
       lucideCrown,
       lucideLogIn,
       lucideLogOut,
+      lucideLoaderCircle,
       lucideMessageSquare,
       lucideSmile,
       lucideTrophy,
@@ -37,10 +50,11 @@ import { AuthService } from '@core/auth/auth.service';
   templateUrl: './home.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class HomePage implements OnInit {
+export class HomePage implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  readonly matchmaking = inject(MatchmakingFacade);
 
   readonly user = this.auth.user;
   readonly isAuthenticated = this.auth.isAuthenticated;
@@ -54,7 +68,14 @@ export class HomePage implements OnInit {
     this.auth
       .restore()
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: () => undefined });
+      .subscribe({
+        next: () => void this.matchmaking.initialize(),
+        error: () => void this.matchmaking.initialize(),
+      });
+  }
+
+  ngOnDestroy(): void {
+    void this.matchmaking.destroy();
   }
 
   normalizeCode(event: Event): void {
@@ -91,7 +112,21 @@ export class HomePage implements OnInit {
     }
   }
 
-  logout(): void {
+  enterMatchmaking(): void {
+    if (!this.isAuthenticated()) {
+      this.auth.startDiscordLogin('/');
+      return;
+    }
+
+    void this.matchmaking.toggleQueue();
+  }
+
+  async logout(): Promise<void> {
+    if (this.matchmaking.isWaiting()) {
+      await this.matchmaking.leaveQueue();
+    }
+
+    await this.matchmaking.destroy();
     this.auth.logout();
   }
 }
