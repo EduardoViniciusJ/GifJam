@@ -5,6 +5,7 @@ import { SessionUser } from './auth.models';
 @Injectable({ providedIn: 'root' })
 export class SessionTokenService {
   private readonly userState = signal<SessionUser | null>(null);
+  private csrfToken: string | null = null;
 
   readonly user = this.userState.asReadonly();
   readonly isAuthenticated = computed(() => Boolean(this.userState()));
@@ -19,6 +20,15 @@ export class SessionTokenService {
     }
   }
 
+  setSession(user: SessionUser, csrfToken: string): void {
+    this.setUser(user);
+    this.csrfToken = csrfToken.trim() || null;
+  }
+
+  getCsrfToken(): string | null {
+    return this.csrfToken;
+  }
+
   setUser(user: SessionUser): void {
     if (!isSessionUser(user)) {
       this.userState.set(null);
@@ -30,6 +40,7 @@ export class SessionTokenService {
 
   clear(): void {
     this.userState.set(null);
+    this.csrfToken = null;
   }
 }
 

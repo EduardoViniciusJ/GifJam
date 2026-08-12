@@ -4,7 +4,12 @@ public sealed record AuthExchangeRequest(string Code);
 
 public sealed record AuthResponse(
     DateTimeOffset ExpiresAt,
-    AuthUserResponse User);
+    AuthUserResponse User,
+    string CsrfToken);
+
+public sealed record AuthStatusResponse(
+    AuthUserResponse User,
+    string CsrfToken);
 
 public sealed record AuthUserResponse(
     Guid Id,

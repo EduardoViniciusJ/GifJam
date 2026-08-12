@@ -50,10 +50,12 @@ public sealed class AuthEndpointTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
         Assert.NotNull(auth);
         Assert.Equal("123456789012345678", auth.User.DiscordId);
+        Assert.False(string.IsNullOrWhiteSpace(auth.CsrfToken));
         var sessionCookie = exchange.Headers.GetValues("Set-Cookie")
             .Single(value => value.StartsWith("gifjam-session=", StringComparison.Ordinal));
         Assert.Contains("HttpOnly", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("SameSite=None", sessionCookie, StringComparison.OrdinalIgnoreCase);
         client.DefaultRequestHeaders.Add("Cookie", sessionCookie.Split(';')[0]);
 
         using var reusedExchange = await client.PostAsJsonAsync(
@@ -62,9 +64,10 @@ public sealed class AuthEndpointTests : IDisposable
         Assert.Equal(HttpStatusCode.BadRequest, reusedExchange.StatusCode);
 
         using var meResponse = await client.GetAsync("/api/auth/me");
-        var me = await meResponse.Content.ReadFromJsonAsync<AuthUserResponse>();
+        var me = await meResponse.Content.ReadFromJsonAsync<AuthStatusResponse>();
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);
-        Assert.Equal(auth.User, me);
+        Assert.Equal(auth.User, me?.User);
+        Assert.False(string.IsNullOrWhiteSpace(me?.CsrfToken));
     }
 
     [Fact]

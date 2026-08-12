@@ -11,4 +11,10 @@ export interface SessionUser {
 export interface AuthExchangeResponse {
   expiresAt: string;
   user: SessionUser;
+  csrfToken: string;
+}
+
+export interface AuthStatusResponse {
+  user: SessionUser;
+  csrfToken: string;
 }

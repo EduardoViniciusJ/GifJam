@@ -1,17 +1,18 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, of, tap, throwError } from 'rxjs';
+import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
 
 import { ApiProblemError } from '@core/models/problem-details.model';
 import { apiUrl } from '@core/http/api-url';
 
-import { AuthExchangeResponse, SessionUser } from './auth.models';
+import { AuthExchangeResponse, AuthStatusResponse, SessionUser } from './auth.models';
 import { SessionTokenService } from './session-token.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionTokenService);
+  private restoreRequest: Observable<SessionUser | null> | null = null;
 
   readonly user = this.session.user;
   readonly isAuthenticated = this.session.isAuthenticated;
@@ -19,12 +20,17 @@ export class AuthService {
   exchange(code: string): Observable<AuthExchangeResponse> {
     return this.http
       .post<AuthExchangeResponse>(apiUrl('/auth/exchange'), { code })
-      .pipe(tap((response) => this.session.setUser(response.user)));
+      .pipe(tap((response) => this.session.setSession(response.user, response.csrfToken)));
   }
 
   restore(): Observable<SessionUser | null> {
-    return this.http.get<SessionUser>(apiUrl('/auth/me')).pipe(
-      tap((user) => this.session.setUser(user)),
+    if (this.restoreRequest) {
+      return this.restoreRequest;
+    }
+
+    const request = this.http.get<AuthStatusResponse>(apiUrl('/auth/me')).pipe(
+      tap((response) => this.session.setSession(response.user, response.csrfToken)),
+      map((response) => response.user),
       catchError((error: unknown) => {
         if (error instanceof ApiProblemError && error.status === 401) {
           this.session.clear();
@@ -33,7 +39,15 @@ export class AuthService {
 
         return throwError(() => error);
       }),
+      finalize(() => {
+        if (this.restoreRequest === request) {
+          this.restoreRequest = null;
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
+    this.restoreRequest = request;
+    return request;
   }
 
   startDiscordLogin(returnUrl: string): void {

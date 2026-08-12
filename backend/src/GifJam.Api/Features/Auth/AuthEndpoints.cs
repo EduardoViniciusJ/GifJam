@@ -7,8 +7,6 @@ namespace GifJam.Api.Features.Auth;
 public static class AuthEndpoints
 {
     public const string RateLimitPolicy = "auth";
-    // The cookie intentionally has no __Host- prefix because local development
-    // runs the Angular app over http://localhost. Production still uses Secure.
     public const string SessionCookieName = "gifjam-session";
     public const string CsrfCookieName = "gifjam-csrf";
 
@@ -61,13 +59,17 @@ public static class AuthEndpoints
         group.MapPost("/exchange", async (
                 [FromBody] AuthExchangeRequest request,
                 [FromServices] AuthService authService,
+                [FromServices] IHostEnvironment environment,
                 HttpContext context,
                 CancellationToken cancellationToken) =>
                 {
                     var session = await authService.ExchangeAsync(request, cancellationToken);
-                    AppendSessionCookie(context, session);
+                    AppendSessionCookie(context, environment, session);
                     context.Response.Headers.CacheControl = "no-store";
-                    return Results.Ok(new AuthResponse(session.ExpiresAt, session.User));
+                    return Results.Ok(new AuthResponse(
+                        session.ExpiresAt,
+                        session.User,
+                        CsrfProtection.GetToken(context)));
                 })
             .AllowAnonymous()
             .RequireRateLimiting(RateLimitPolicy)
@@ -75,9 +77,9 @@ public static class AuthEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .WithName("ExchangeAuthenticationCode");
 
-        group.MapPost("/logout", (HttpContext context) =>
+        group.MapPost("/logout", (HttpContext context, IHostEnvironment environment) =>
             {
-                DeleteSessionCookie(context);
+                DeleteSessionCookie(context, environment);
                 return Results.NoContent();
             })
             .AllowAnonymous()
@@ -87,13 +89,14 @@ public static class AuthEndpoints
                 [FromBody] DeleteAccountRequest request,
                 HttpContext context,
                 [FromServices] AuthService authService,
+                [FromServices] IHostEnvironment environment,
                 CancellationToken cancellationToken) =>
             {
                 await authService.DeleteAccountAsync(
                     context.User.GetRequiredUserId(),
                     request.Confirmation,
                     cancellationToken);
-                DeleteSessionCookie(context);
+                DeleteSessionCookie(context, environment);
                 return Results.NoContent();
             })
             .RequireAuthorization()
@@ -105,11 +108,13 @@ public static class AuthEndpoints
                 HttpContext context,
                 AuthService authService,
                 CancellationToken cancellationToken) =>
-                Results.Ok(await authService.GetCurrentUserAsync(
-                    context.User.GetRequiredUserId(),
-                    cancellationToken)))
+                Results.Ok(new AuthStatusResponse(
+                    await authService.GetCurrentUserAsync(
+                        context.User.GetRequiredUserId(),
+                        cancellationToken),
+                    CsrfProtection.GetToken(context))))
             .RequireAuthorization()
-            .Produces<AuthUserResponse>()
+            .Produces<AuthStatusResponse>()
             .ProducesProblem(StatusCodes.Status401Unauthorized)
             .WithName("GetCurrentUser");
 
@@ -121,31 +126,21 @@ public static class AuthEndpoints
         "discord_identity_failed" or
         "discord_invalid_response";
 
-    private static void AppendSessionCookie(HttpContext context, AuthSessionResult session)
+    private static void AppendSessionCookie(
+        HttpContext context,
+        IHostEnvironment environment,
+        AuthSessionResult session)
     {
-        context.Response.Cookies.Append(SessionCookieName, session.AccessToken, new CookieOptions
-        {
-            HttpOnly = true,
-            Secure = ShouldUseSecureCookies(context),
-            SameSite = ShouldUseSecureCookies(context) ? SameSiteMode.None : SameSiteMode.Lax,
-            Path = "/",
-            Expires = session.ExpiresAt
-        });
+        context.Response.Cookies.Append(
+            SessionCookieName,
+            session.AccessToken,
+            AuthCookiePolicy.CreateSessionCookie(environment, session.ExpiresAt));
     }
 
-    private static void DeleteSessionCookie(HttpContext context)
+    private static void DeleteSessionCookie(HttpContext context, IHostEnvironment environment)
     {
-        var secure = ShouldUseSecureCookies(context);
-        context.Response.Cookies.Delete(SessionCookieName, new CookieOptions
-        {
-            Path = "/",
-            Secure = secure,
-            HttpOnly = true,
-            SameSite = secure ? SameSiteMode.None : SameSiteMode.Lax
-        });
+        context.Response.Cookies.Delete(
+            SessionCookieName,
+            AuthCookiePolicy.CreateSessionCookie(environment));
     }
-
-    private static bool ShouldUseSecureCookies(HttpContext context) =>
-        !context.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
-        !context.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
 }

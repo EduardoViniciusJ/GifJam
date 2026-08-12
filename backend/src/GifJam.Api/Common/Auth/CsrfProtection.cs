@@ -7,33 +7,31 @@ namespace GifJam.Api.Common.Auth;
 public static class CsrfProtection
 {
     private const string HeaderName = "X-CSRF-TOKEN";
+    private const string ItemName = "GifJam.CsrfToken";
 
     public static IApplicationBuilder UseGifJamCsrf(this IApplicationBuilder app)
     {
         return app.Use(async (context, next) =>
         {
-            if (!context.Request.Cookies.ContainsKey(AuthEndpoints.CsrfCookieName))
+            var csrfToken = context.Request.Cookies[AuthEndpoints.CsrfCookieName];
+            if (string.IsNullOrWhiteSpace(csrfToken))
             {
+                csrfToken = Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(32));
+                var environment = context.RequestServices.GetRequiredService<IHostEnvironment>();
                 context.Response.Cookies.Append(
                     AuthEndpoints.CsrfCookieName,
-                    Base64UrlTextEncoder.Encode(RandomNumberGenerator.GetBytes(32)),
-                    new CookieOptions
-                    {
-                        HttpOnly = false,
-                        Secure = ShouldUseSecureCookies(context),
-                        SameSite = ShouldUseSecureCookies(context) ? SameSiteMode.None : SameSiteMode.Lax,
-                        Path = "/",
-                        IsEssential = true
-                    });
+                    csrfToken,
+                    AuthCookiePolicy.CreateCsrfCookie(environment));
             }
+
+            context.Items[ItemName] = csrfToken;
 
             if (context.Request.Path.StartsWithSegments("/api") &&
                 IsUnsafe(context.Request.Method) &&
                 context.Request.Cookies.ContainsKey(AuthEndpoints.SessionCookieName))
             {
-                var cookieToken = context.Request.Cookies[AuthEndpoints.CsrfCookieName];
                 var headerToken = context.Request.Headers[HeaderName].ToString();
-                var cookieBytes = System.Text.Encoding.UTF8.GetBytes(cookieToken ?? string.Empty);
+                var cookieBytes = System.Text.Encoding.UTF8.GetBytes(csrfToken);
                 var headerBytes = System.Text.Encoding.UTF8.GetBytes(headerToken);
                 if (cookieBytes.Length == 0 || cookieBytes.Length != headerBytes.Length ||
                     !CryptographicOperations.FixedTimeEquals(cookieBytes, headerBytes))
@@ -51,7 +49,7 @@ public static class CsrfProtection
         HttpMethods.IsPost(method) || HttpMethods.IsPut(method) ||
         HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
 
-    private static bool ShouldUseSecureCookies(HttpContext context) =>
-        !context.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
-        !context.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+    public static string GetToken(HttpContext context) =>
+        context.Items[ItemName] as string
+        ?? throw new InvalidOperationException("The CSRF middleware did not initialize a token.");
 }

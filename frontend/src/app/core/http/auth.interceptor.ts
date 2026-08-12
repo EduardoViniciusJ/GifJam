@@ -14,7 +14,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   }
 
   const headers: Record<string, string> = {};
-  const csrfToken = readCookie('gifjam-csrf');
+  const csrfToken = session.getCsrfToken();
   if (csrfToken && isUnsafeMethod(request.method)) {
     headers['X-CSRF-TOKEN'] = csrfToken;
   }
@@ -37,20 +37,6 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
 
 function isUnsafeMethod(method: string): boolean {
   return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
-}
-
-function readCookie(name: string): string | null {
-  if (typeof document === 'undefined') {
-    return null;
-  }
-
-  const prefix = `${name}=`;
-  return (
-    document.cookie
-      .split('; ')
-      .find((cookie) => cookie.startsWith(prefix))
-      ?.slice(prefix.length) ?? null
-  );
 }
 
 function isGifJamApiRequest(requestUrl: string): boolean {

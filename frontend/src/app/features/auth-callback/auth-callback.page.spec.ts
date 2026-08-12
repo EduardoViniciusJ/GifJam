@@ -41,6 +41,7 @@ describe('AuthCallbackPage', () => {
     expect(request.request.body).toEqual({ code: 'one-time-code' });
     request.flush({
       expiresAt: '2026-08-10T20:00:00Z',
+      csrfToken: 'csrf-token',
       user: {
         id: 'user-id',
         discordId: 'discord-id',
