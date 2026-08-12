@@ -88,9 +88,12 @@ public sealed partial class GameHub(
     {
         GameHubInputValidator.ValidateGameCode(gameCode);
         var userId = Context.User!.GetRequiredUserId();
-        // RequestSync is a read path. Expired rounds are advanced by the
-        // RoundScheduler, so a client refresh must not scan and mutate every
-        // game in the database before returning this room's snapshot.
+        // Validate membership before allowing a sync-triggered transition.
+        await gameService.GetAsync(gameCode, userId, Context.ConnectionAborted);
+        // Recover this game's expired round before returning its snapshot. The
+        // operation is scoped to the requested game, so sync never performs a
+        // global scan and still works if the background scheduler is delayed.
+        await gameCoordinator.ProcessExpiredRoundAsync(gameCode, Context.ConnectionAborted);
         var snapshot = await gameService.GetAsync(gameCode, userId, Context.ConnectionAborted);
         await Clients.Caller.StateSynced(snapshot);
     });

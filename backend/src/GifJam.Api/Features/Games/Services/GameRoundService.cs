@@ -343,6 +343,21 @@ public sealed partial class GameRoundService(
         return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
+    public async Task ProcessExpiredRoundAsync(string gameCode, CancellationToken cancellationToken)
+    {
+        var gameId = await FindGameIdAsync(gameCode, cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        var round = game.Rounds.SingleOrDefault(savedRound => savedRound.RoundNumber == game.CurrentRoundNumber);
+        if (round is null || round.PhaseEndsAt > clock.UtcNow)
+        {
+            return;
+        }
+
+        await TryAdvanceExpiredRoundAsync(game, round, cancellationToken);
+    }
+
     public async Task ProcessExpiredRoundsAsync(CancellationToken cancellationToken)
     {
         var now = clock.UtcNow;
@@ -383,6 +398,26 @@ public sealed partial class GameRoundService(
             return;
         }
 
+        await TryAdvanceExpiredRoundAsync(game, round, cancellationToken);
+    }
+
+    private async Task TryAdvanceExpiredRoundAsync(Game game, Round round, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await AdvanceExpiredRoundAsync(game, round, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another scheduler instance or a realtime sync won the race.
+            // The next snapshot reads the committed state, so this is safe to
+            // treat as an idempotent no-op instead of blocking the scheduler.
+            dbContext.ChangeTracker.Clear();
+        }
+    }
+
+    private async Task AdvanceExpiredRoundAsync(Game game, Round round, CancellationToken cancellationToken)
+    {
         Round phaseToPublish;
         switch (round.Phase)
         {

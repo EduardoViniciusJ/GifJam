@@ -103,6 +103,17 @@ public sealed partial class GameRoundService
             return round;
         }
 
+        // A user can be removed while a game is in progress (for example
+        // after account deletion). Do not try to create an AI round without
+        // the minimum number of active players; close the orphaned game so it
+        // cannot make the scheduler fail repeatedly and block other games.
+        if (game.Players.Count(player => player.LeftAt is null) < GameRules.MinimumPlayers)
+        {
+            game.Status = GameStatus.Closed;
+            game.FinishedAt = clock.UtcNow;
+            return round;
+        }
+
         game.CurrentRoundNumber++;
         return await CreateRoundAsync(game, game.CurrentRoundNumber, cancellationToken);
     }

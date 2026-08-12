@@ -292,6 +292,26 @@ public sealed class GameCoordinatorTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncScopedExpirationAdvancesRoundWithoutSubmissions()
+    {
+        var setup = await CreateReadyGameAsync();
+        await StartGameAsync(setup);
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
+
+        await WithCoordinatorAsync(async coordinator =>
+        {
+            await coordinator.ProcessExpiredRoundAsync(setup.Code, CancellationToken.None);
+            return true;
+        });
+
+        await using var context = database.CreateDbContext();
+        var rounds = await context.Rounds.OrderBy(round => round.RoundNumber).ToArrayAsync();
+        Assert.Equal(2, rounds.Length);
+        Assert.Equal(RoundPhase.Completed, rounds[0].Phase);
+        Assert.Equal(RoundPhase.PhraseSubmission, rounds[1].Phase);
+    }
+
+    [Fact]
     public async Task PhraseVotingWithoutVotesStillSelectsAPhraseAtTimeout()
     {
         var setup = await CreateReadyGameAsync();
