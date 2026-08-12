@@ -3,24 +3,34 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 
 import { SessionTokenService } from '@core/auth/session-token.service';
+import { ApiProblemError } from '@core/models/problem-details.model';
 import { apiUrl } from './api-url';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionTokenService);
-  const token = session.get();
   const isApiRequest = isGifJamApiRequest(request.url);
 
-  if (!token || !isApiRequest) {
+  if (!isApiRequest) {
     return next(request);
+  }
+
+  const headers: Record<string, string> = {};
+  const csrfToken = session.getCsrfToken();
+  if (csrfToken && isUnsafeMethod(request.method)) {
+    headers['X-CSRF-TOKEN'] = csrfToken;
   }
 
   return next(
     request.clone({
-      setHeaders: { Authorization: `Bearer ${token}` },
+      withCredentials: true,
+      setHeaders: headers,
     }),
   ).pipe(
     catchError((error: unknown) => {
-      if (error instanceof HttpErrorResponse && error.status === 401) {
+      if (
+        (error instanceof HttpErrorResponse && error.status === 401) ||
+        (error instanceof ApiProblemError && error.status === 401)
+      ) {
         session.clear();
       }
 
@@ -28,6 +38,10 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
+
+function isUnsafeMethod(method: string): boolean {
+  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
+}
 
 function isGifJamApiRequest(requestUrl: string): boolean {
   const apiBase = new URL(apiUrl('/'), window.location.origin);

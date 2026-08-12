@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideRouter, Router } from '@angular/router';
 import { TestBed } from '@angular/core/testing';
+import { of } from 'rxjs';
 import { vi } from 'vitest';
 
 import { AuthService } from '@core/auth/auth.service';
@@ -56,13 +57,14 @@ describe('HomePage', () => {
     expect(navigate).toHaveBeenCalledWith(['/sala', 'ABC12']);
   });
 
-  it('starts login with the room return URL for a logged-out player', () => {
+  it('starts login with the room return URL for a logged-out player', async () => {
     const fixture = TestBed.createComponent(HomePage);
     const auth = TestBed.inject(AuthService);
     const startLogin = vi.spyOn(auth, 'startDiscordLogin').mockImplementation(() => undefined);
+    vi.spyOn(auth, 'restore').mockReturnValue(of(null));
 
     fixture.componentInstance.roomCode.setValue('ABC12');
-    void fixture.componentInstance.joinRoom();
+    await fixture.componentInstance.joinRoom();
 
     expect(startLogin).toHaveBeenCalledWith('/sala/abc12');
   });
@@ -100,6 +102,7 @@ describe('HomePage', () => {
     const fixture = TestBed.createComponent(HomePage);
     const auth = TestBed.inject(AuthService);
     const startLogin = vi.spyOn(auth, 'startDiscordLogin').mockImplementation(() => undefined);
+    vi.spyOn(auth, 'restore').mockReturnValue(of(null));
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -108,7 +111,7 @@ describe('HomePage', () => {
 
     button.click();
 
-    expect(startLogin).toHaveBeenCalledWith('/');
+    await vi.waitFor(() => expect(startLogin).toHaveBeenCalledWith('/'));
   });
 
   it('enters matchmaking directly for logged-in visitors', async () => {
@@ -126,9 +129,38 @@ describe('HomePage', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    fixture.componentInstance.enterMatchmaking();
+    await fixture.componentInstance.enterMatchmaking();
 
     expect(toggleQueue).toHaveBeenCalledOnce();
+  });
+
+  it('restores the cookie session before room and matchmaking actions', async () => {
+    const fixture = TestBed.createComponent(HomePage);
+    const auth = TestBed.inject(AuthService);
+    const router = TestBed.inject(Router);
+    const restoredUser = {
+      id: 'user-id',
+      discordId: 'discord-id',
+      username: 'player',
+      displayName: 'Player',
+      avatarUrl: null,
+    };
+    vi.spyOn(auth, 'restore').mockReturnValue(of(restoredUser));
+    const startLogin = vi.spyOn(auth, 'startDiscordLogin').mockImplementation(() => undefined);
+    const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+    const toggleQueue = vi
+      .spyOn(fixture.componentInstance.matchmaking, 'toggleQueue')
+      .mockResolvedValue();
+
+    await fixture.componentInstance.createRoom();
+    fixture.componentInstance.roomCode.setValue('ABC12');
+    await fixture.componentInstance.joinRoom();
+    await fixture.componentInstance.enterMatchmaking();
+
+    expect(navigate).toHaveBeenCalledWith(['/sala', 'nova']);
+    expect(navigate).toHaveBeenCalledWith(['/sala', 'ABC12']);
+    expect(toggleQueue).toHaveBeenCalledOnce();
+    expect(startLogin).not.toHaveBeenCalled();
   });
 
   it('shows the player count while waiting for another player', () => {

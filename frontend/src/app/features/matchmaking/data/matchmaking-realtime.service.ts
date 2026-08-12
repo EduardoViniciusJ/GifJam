@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -6,7 +6,6 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 
-import { SessionTokenService } from '@core/auth/session-token.service';
 import { environment } from '@env/environment';
 
 import { MatchFoundSnapshot, MatchmakingSnapshot } from './matchmaking.models';
@@ -20,8 +19,8 @@ export interface MatchmakingRealtimeHandlers {
 
 @Injectable()
 export class MatchmakingRealtimeService {
-  private readonly session = inject(SessionTokenService);
   private connection: HubConnection | null = null;
+  private connectionOperation: Promise<void> | null = null;
 
   readonly state = signal<MatchmakingRealtimeState>('disconnected');
 
@@ -30,12 +29,28 @@ export class MatchmakingRealtimeService {
       return;
     }
 
+    if (this.connectionOperation) {
+      return this.connectionOperation;
+    }
+
+    const operation = this.connectInternal(handlers);
+    this.connectionOperation = operation;
+    try {
+      await operation;
+    } finally {
+      if (this.connectionOperation === operation) {
+        this.connectionOperation = null;
+      }
+    }
+  }
+
+  private async connectInternal(handlers: MatchmakingRealtimeHandlers): Promise<void> {
     await this.stop();
     this.state.set('connecting');
 
     const connection = new HubConnectionBuilder()
       .withUrl(environment.gameHubUrl, {
-        accessTokenFactory: () => this.session.get() ?? '',
+        withCredentials: true,
       })
       .withAutomaticReconnect([0, 1_000, 3_000, 5_000])
       .configureLogging(LogLevel.Warning)
@@ -43,13 +58,30 @@ export class MatchmakingRealtimeService {
 
     connection.on('MatchmakingUpdated', handlers.updated);
     connection.on('MatchFound', handlers.found);
-    connection.onreconnecting(() => this.state.set('reconnecting'));
-    connection.onreconnected(() => this.state.set('connected'));
-    connection.onclose(() => this.state.set('disconnected'));
+    connection.onreconnecting(() => {
+      if (this.connection === connection) {
+        this.state.set('reconnecting');
+      }
+    });
+    connection.onreconnected(() => {
+      if (this.connection === connection) {
+        this.state.set('connected');
+      }
+    });
+    connection.onclose(() => {
+      if (this.connection === connection) {
+        this.state.set('disconnected');
+      }
+    });
 
     this.connection = connection;
     try {
       await connection.start();
+      if (this.connection !== connection) {
+        await connection.stop();
+        return;
+      }
+
       this.state.set('connected');
     } catch (error) {
       this.connection = null;

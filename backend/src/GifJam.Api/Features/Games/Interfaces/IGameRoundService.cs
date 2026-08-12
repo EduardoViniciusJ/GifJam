@@ -16,5 +16,7 @@ public interface IGameRoundService
 
     Task<PlayerGameSnapshot> SetResultsReadyAsync(string gameCode, Guid userId, CancellationToken cancellationToken);
 
+    Task ProcessExpiredRoundAsync(string gameCode, CancellationToken cancellationToken);
+
     Task ProcessExpiredRoundsAsync(CancellationToken cancellationToken);
 }

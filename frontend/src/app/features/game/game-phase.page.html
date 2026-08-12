@@ -116,14 +116,19 @@
         <div class="phase-panel__intro">
           <span class="phase-panel__icon"><ng-icon name="lucidePaperclip" /></span>
           <div>
-            <h2 id="gif-title">Escolha seu GIF</h2>
-            <p class="selected-phrase">
-              <app-player-mention-text
-                [text]="round.selectedPhrase?.text ?? 'Frase selecionada'"
-                [playerNames]="isAiPhraseMode() ? playerNames() : []"
-              />
-            </p>
+            <h2 id="gif-title">Escolha um GIF para sua frase</h2>
+            <p>Encontre uma reação que combine com o momento.</p>
           </div>
+        </div>
+
+        <div class="gif-prompt-card">
+          <span class="gif-prompt-card__label">A frase da rodada</span>
+          <strong class="selected-phrase">
+            <app-player-mention-text
+              [text]="round.selectedPhrase?.text ?? 'Frase selecionada'"
+              [playerNames]="isAiPhraseMode() ? playerNames() : []"
+            />
+          </strong>
         </div>
 
         <form class="gif-search" (ngSubmit)="searchGifs()">
@@ -136,7 +141,7 @@
             minlength="2"
             maxlength="80"
             [ngModel]="gifQuery()"
-            placeholder="gato bravo, reação surpresa..."
+            placeholder="Pesquise por uma reação, meme ou sentimento..."
             (ngModelChange)="gifQuery.set($event)"
           />
           <button class="button button--outline" type="submit" [disabled]="searching()">
@@ -145,17 +150,28 @@
             } @else {
               <ng-icon name="lucideSearch" aria-hidden="true" />
             }
-            Buscar
+            Pesquisar
           </button>
         </form>
 
-        <div class="gif-suggestions" aria-label="Sugestões de busca">
-          <span><ng-icon name="lucideSparkles" aria-hidden="true" /> Sugestões</span>
-          @for (suggestion of gifSuggestions; track suggestion) {
-            <button type="button" [disabled]="searching()" (click)="searchSuggestion(suggestion)">
-              {{ suggestion }}
-            </button>
-          }
+        <div class="gif-categories" aria-label="Categorias rápidas">
+          <div class="gif-categories__heading">
+            <ng-icon name="lucideSparkles" aria-hidden="true" />
+            <span>Categorias rápidas</span>
+            <small>ou pesquise algo específico</small>
+          </div>
+          <div class="gif-categories__list">
+            @for (category of gifCategories; track category.query) {
+              <button
+                type="button"
+                [class.gif-category--active]="gifQuery().toLowerCase() === category.query"
+                [disabled]="searching()"
+                (click)="searchSuggestion(category.query)"
+              >
+                {{ category.label }}
+              </button>
+            }
+          </div>
         </div>
 
         @if (selectedGif(); as selectedGif) {

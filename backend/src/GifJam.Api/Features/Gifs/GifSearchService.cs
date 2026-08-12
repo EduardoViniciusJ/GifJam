@@ -75,7 +75,7 @@ public sealed partial class GifSearchService(
                 item.SourceUrl,
                 item.Attribution,
                 tokenService.Create(normalizedCode, item))).ToArray();
-            return new(items, result.NextCursor, "Search KLIPY + GIPHY", "Powered by KLIPY and GIPHY");
+            return new(items, result.NextCursor, "Pesquise um GIF...", "Powered by KLIPY and GIPHY");
         }
         catch (GifProviderUnavailableException exception)
         {

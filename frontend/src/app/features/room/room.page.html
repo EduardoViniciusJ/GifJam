@@ -9,7 +9,10 @@
           } @else {
             <span class="avatar-fallback">{{ user.displayName.charAt(0) }}</span>
           }
-          <span>{{ user.displayName }}</span>
+          <span class="game-user__copy">
+            <strong>{{ user.displayName }}</strong>
+            <small>&#64;{{ user.username }}</small>
+          </span>
         </div>
       }
       @if (lobby()) {
@@ -67,204 +70,357 @@
   } @else if (lobby(); as lobby) {
     @if (lobby.status === 'Lobby') {
       <main class="lobby-page">
-        <section class="lobby-heading" aria-labelledby="lobby-title">
-          <span class="lobby-heading__icon">
-            <ng-icon name="lucideCrown" aria-hidden="true" />
-          </span>
-          <div>
-            <p class="eyebrow eyebrow--dark">SALA</p>
-            <h1 id="lobby-title">{{ lobby.code }}</h1>
-            <div class="lobby-heading__meta">
-              <button class="button button--outline" type="button" (click)="copyInvite()">
-                <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideLink'" aria-hidden="true" />
-                {{ copied() ? 'Link copiado' : 'Copiar link' }}
-              </button>
-              <span>
-                <ng-icon name="lucideUsers" aria-hidden="true" />
-                {{ lobby.players.length }}
-                {{ lobby.players.length === 1 ? 'jogador' : 'jogadores' }}
-              </span>
-              <span
-                class="connection-label"
-                [class.connection-label--online]="realtime.state() === 'connected'"
-              >
-                <ng-icon
-                  [name]="realtime.state() === 'connected' ? 'lucideWifi' : 'lucideWifiOff'"
-                  aria-hidden="true"
-                />
-                {{ connectionLabel() }}
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section class="player-list" aria-label="Jogadores na sala">
-          @for (player of lobby.players; track player.userId) {
-            <article class="lobby-player" [class.lobby-player--offline]="!player.isConnected">
-              <div class="lobby-player__avatar">
-                @if (player.avatarUrl) {
-                  <img [src]="player.avatarUrl" width="96" height="96" alt="" />
-                } @else {
-                  <span>{{ player.displayName.charAt(0) }}</span>
-                }
-                <i
-                  [class]="player.isConnected ? 'presence-dot' : 'presence-dot presence-dot--off'"
-                ></i>
-              </div>
-              <div class="lobby-player__identity">
-                <strong>{{ player.displayName }}</strong>
-                @if (player.isHost) {
-                  <span class="host-badge">
+        <section class="lobby-hero" aria-labelledby="lobby-title">
+          <div class="lobby-hero__intro">
+            <span class="lobby-heading__icon" aria-hidden="true">
+              <ng-icon name="lucideGamepad2" />
+            </span>
+            <div>
+              <p class="eyebrow eyebrow--dark">AGUARDANDO JOGADORES</p>
+              <h1 id="lobby-title">{{ lobby.code }}</h1>
+              <p class="lobby-hero__description">
+                Monte a turma, ajuste a partida e comece quando todo mundo estiver pronto.
+              </p>
+              <div class="lobby-heading__meta">
+                <button
+                  class="button button--outline lobby-copy-button"
+                  type="button"
+                  (click)="copyInvite()"
+                >
+                  <ng-icon [name]="copied() ? 'lucideCheck' : 'lucideCopy'" aria-hidden="true" />
+                  {{ copied() ? 'Link copiado' : 'Copiar convite' }}
+                </button>
+                <span class="lobby-meta-pill">
+                  <ng-icon name="lucideUsers" aria-hidden="true" />
+                  <b>{{ lobby.players.length }}</b
+                  >/6 jogadores
+                </span>
+                <span
+                  class="lobby-meta-pill connection-label"
+                  [class.connection-label--online]="realtime.state() === 'connected'"
+                >
+                  <ng-icon
+                    [name]="realtime.state() === 'connected' ? 'lucideWifi' : 'lucideWifiOff'"
+                    aria-hidden="true"
+                  />
+                  {{ connectionLabel() }}
+                </span>
+                @if (hostPlayer(); as host) {
+                  <span class="lobby-meta-pill lobby-host-pill">
                     <ng-icon name="lucideCrown" aria-hidden="true" />
-                    Host
+                    Host: <b>{{ host.displayName }}</b>
                   </span>
                 }
               </div>
-              <span class="ready-state" [class.ready-state--ready]="player.isReady">
-                {{ player.isReady ? 'Pronto' : 'Aguardando' }}
-              </span>
+            </div>
+          </div>
+
+          @if (currentPlayer(); as player) {
+            <article class="lobby-profile-card" aria-label="Seu perfil nesta sala">
+              <div class="lobby-profile-card__identity">
+                <div class="lobby-profile-card__avatar">
+                  @if (player.avatarUrl) {
+                    <img
+                      [src]="player.avatarUrl"
+                      [alt]="'Avatar de ' + player.displayName"
+                      width="64"
+                      height="64"
+                    />
+                  } @else {
+                    <span>{{ player.displayName.charAt(0) }}</span>
+                  }
+                  <i class="presence-dot"></i>
+                </div>
+                <span>
+                  <small>SEU PERFIL</small>
+                  <strong>{{ player.displayName }}</strong>
+                  <em>&#64;{{ player.username }}</em>
+                </span>
+              </div>
+              <div class="lobby-profile-card__stats">
+                <span>
+                  <ng-icon name="lucideTrophy" aria-hidden="true" />
+                  <small>Ranking geral</small>
+                  <strong>
+                    @if (globalRankingStatus() === 'loading') {
+                      ...
+                    } @else if (currentPlayerPosition(); as position) {
+                      #{{ position }}
+                    } @else {
+                      —
+                    }
+                  </strong>
+                </span>
+                <span>
+                  <small>Pontuação total</small>
+                  <strong>
+                    {{ currentPlayerScore() ?? '—' }}
+                    @if (currentPlayerScore() !== null) {
+                      <em>pts</em>
+                    }
+                  </strong>
+                </span>
+              </div>
             </article>
           }
         </section>
 
-        <section class="lobby-controls" aria-label="Configurações da partida">
-          <div class="game-settings">
-            <div class="setting-row setting-row--mode">
-              <span>Modo de frases</span>
-              <div class="segmented-control segmented-control--mode" aria-label="Modo de frases">
-                <button
-                  type="button"
-                  [class.segmented-control__active]="lobby.mode === 'Classic'"
-                  [disabled]="!currentPlayer()?.isHost || actionPending()"
-                  (click)="
-                    updateSettings(
-                      lobby.totalRounds,
-                      lobby.phraseSubmissionSeconds,
-                      lobby.resultsSeconds,
-                      'Classic'
-                    )
-                  "
+        <div class="lobby-dashboard">
+          <section class="lobby-panel lobby-roster" aria-labelledby="players-title">
+            <header class="lobby-panel__header">
+              <span>
+                <small>TIME DA SALA</small>
+                <h2 id="players-title">Jogadores</h2>
+              </span>
+              <b>{{ lobby.players.length }}/6</b>
+            </header>
+
+            <div class="player-list" aria-label="Jogadores na sala">
+              @for (entry of playersWithRanking(); track entry.player.userId) {
+                <article
+                  class="lobby-player"
+                  [class.lobby-player--current]="entry.isCurrent"
+                  [class.lobby-player--offline]="!entry.player.isConnected"
+                  [attr.aria-current]="entry.isCurrent ? 'true' : null"
                 >
-                  Frases dos jogadores
-                </button>
-                <button
-                  type="button"
-                  [class.segmented-control__active]="lobby.mode === 'AiRandomPhrases'"
-                  [disabled]="!currentPlayer()?.isHost || actionPending()"
-                  (click)="
-                    updateSettings(
-                      lobby.totalRounds,
-                      lobby.phraseSubmissionSeconds,
-                      lobby.resultsSeconds,
-                      'AiRandomPhrases'
-                    )
-                  "
-                >
-                  <ng-icon name="lucideSparkles" aria-hidden="true" />
-                  Frases aleatórias (IA)
-                </button>
-              </div>
-            </div>
-            <div class="setting-row">
-              <span>Rodadas</span>
-              <div class="segmented-control" aria-label="Quantidade de rodadas">
-                @for (rounds of [3, 4, 5, 6]; track rounds) {
-                  <button
-                    type="button"
-                    [class.segmented-control__active]="lobby.totalRounds === rounds"
-                    [disabled]="!currentPlayer()?.isHost || actionPending()"
-                    (click)="
-                      updateSettings(
-                        rounds,
-                        lobby.phraseSubmissionSeconds,
-                        lobby.resultsSeconds,
-                        lobby.mode
-                      )
+                  <span
+                    class="lobby-player__rank"
+                    [title]="
+                      entry.position
+                        ? entry.position + 'ª posição no ranking geral'
+                        : 'Ainda sem posição no ranking geral'
                     "
                   >
-                    {{ rounds }}
-                  </button>
-                }
-              </div>
+                    {{ entry.position ? '#' + entry.position : '—' }}
+                  </span>
+                  <div class="lobby-player__avatar">
+                    @if (entry.player.avatarUrl) {
+                      <img [src]="entry.player.avatarUrl" width="72" height="72" alt="" />
+                    } @else {
+                      <span>{{ entry.player.displayName.charAt(0) }}</span>
+                    }
+                    <i
+                      [class]="
+                        entry.player.isConnected ? 'presence-dot' : 'presence-dot presence-dot--off'
+                      "
+                    ></i>
+                  </div>
+                  <div class="lobby-player__details">
+                    <div class="lobby-player__identity">
+                      <strong>{{ entry.player.displayName }}</strong>
+                      @if (entry.isCurrent) {
+                        <span class="you-badge">Você</span>
+                      }
+                    </div>
+                    <small>&#64;{{ entry.player.username }}</small>
+                    <span class="ready-state" [class.ready-state--ready]="entry.player.isReady">
+                      {{ entry.player.isReady ? 'Pronto para jogar' : 'Ainda não está pronto' }}
+                    </span>
+                  </div>
+                  <div class="lobby-player__score">
+                    <strong>{{ entry.totalScore ?? '—' }}</strong>
+                    <span>{{ entry.totalScore === null ? 'carregando' : 'pts totais' }}</span>
+                  </div>
+                </article>
+              }
+
+              @for (slot of openPlayerSlots(); track slot) {
+                <button
+                  class="lobby-player lobby-player--empty"
+                  type="button"
+                  (click)="copyInvite()"
+                >
+                  <span class="lobby-player__empty-icon">
+                    <ng-icon name="lucideUserPlus" aria-hidden="true" />
+                  </span>
+                  <span>
+                    <strong>Vaga disponível</strong>
+                    <small>Clique para copiar o convite</small>
+                  </span>
+                </button>
+              }
             </div>
-            <div class="setting-row">
-              <span>Tempo para frase</span>
-              <div
-                class="segmented-control segmented-control--three"
-                aria-label="Tempo para criar frase"
-              >
-                @for (seconds of [30, 60, 90]; track seconds) {
+          </section>
+
+          <aside class="lobby-panel lobby-settings" aria-labelledby="settings-title">
+            <header class="lobby-panel__header lobby-panel__header--settings">
+              <span>
+                <small>COMO VAMOS JOGAR?</small>
+                <h2 id="settings-title">Configurações</h2>
+              </span>
+              <ng-icon name="lucideSettings2" aria-hidden="true" />
+            </header>
+
+            <div class="game-settings">
+              <div class="setting-row setting-row--mode">
+                <span>Modo de frases</span>
+                <div class="segmented-control segmented-control--mode" aria-label="Modo de frases">
                   <button
                     type="button"
-                    [class.segmented-control__active]="lobby.phraseSubmissionSeconds === seconds"
-                    [disabled]="!currentPlayer()?.isHost || actionPending()"
-                    (click)="
-                      updateSettings(lobby.totalRounds, seconds, lobby.resultsSeconds, lobby.mode)
-                    "
-                  >
-                    {{ seconds }}s
-                  </button>
-                }
-              </div>
-            </div>
-            <div class="setting-row">
-              <span>Tempo de revelação</span>
-              <div
-                class="segmented-control segmented-control--three"
-                aria-label="Tempo de revelação"
-              >
-                @for (seconds of [15, 30, 60]; track seconds) {
-                  <button
-                    type="button"
-                    [class.segmented-control__active]="lobby.resultsSeconds === seconds"
+                    [class.segmented-control__active]="lobby.mode === 'Classic'"
                     [disabled]="!currentPlayer()?.isHost || actionPending()"
                     (click)="
                       updateSettings(
                         lobby.totalRounds,
                         lobby.phraseSubmissionSeconds,
-                        seconds,
-                        lobby.mode
+                        lobby.resultsSeconds,
+                        'Classic'
                       )
                     "
                   >
-                    {{ seconds }}s
+                    Frases dos jogadores
                   </button>
-                }
+                  <button
+                    type="button"
+                    [class.segmented-control__active]="lobby.mode === 'AiRandomPhrases'"
+                    [disabled]="!currentPlayer()?.isHost || actionPending()"
+                    (click)="
+                      updateSettings(
+                        lobby.totalRounds,
+                        lobby.phraseSubmissionSeconds,
+                        lobby.resultsSeconds,
+                        'AiRandomPhrases'
+                      )
+                    "
+                  >
+                    <ng-icon name="lucideSparkles" aria-hidden="true" />
+                    Frases aleatórias (IA)
+                  </button>
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <span>Rodadas</span>
+                <div class="segmented-control" aria-label="Quantidade de rodadas">
+                  @for (rounds of [3, 4, 5, 6]; track rounds) {
+                    <button
+                      type="button"
+                      [class.segmented-control__active]="lobby.totalRounds === rounds"
+                      [disabled]="!currentPlayer()?.isHost || actionPending()"
+                      (click)="
+                        updateSettings(
+                          rounds,
+                          lobby.phraseSubmissionSeconds,
+                          lobby.resultsSeconds,
+                          lobby.mode
+                        )
+                      "
+                    >
+                      {{ rounds }}
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <span>Tempo para frase</span>
+                <div
+                  class="segmented-control segmented-control--three"
+                  aria-label="Tempo para criar frase"
+                >
+                  @for (seconds of [30, 60, 90]; track seconds) {
+                    <button
+                      type="button"
+                      [class.segmented-control__active]="lobby.phraseSubmissionSeconds === seconds"
+                      [disabled]="!currentPlayer()?.isHost || actionPending()"
+                      (click)="
+                        updateSettings(lobby.totalRounds, seconds, lobby.resultsSeconds, lobby.mode)
+                      "
+                    >
+                      {{ seconds }}s
+                    </button>
+                  }
+                </div>
+              </div>
+
+              <div class="setting-row">
+                <span>Tempo de revelação</span>
+                <div
+                  class="segmented-control segmented-control--three"
+                  aria-label="Tempo de revelação"
+                >
+                  @for (seconds of [15, 30, 60]; track seconds) {
+                    <button
+                      type="button"
+                      [class.segmented-control__active]="lobby.resultsSeconds === seconds"
+                      [disabled]="!currentPlayer()?.isHost || actionPending()"
+                      (click)="
+                        updateSettings(
+                          lobby.totalRounds,
+                          lobby.phraseSubmissionSeconds,
+                          seconds,
+                          lobby.mode
+                        )
+                      "
+                    >
+                      {{ seconds }}s
+                    </button>
+                  }
+                </div>
               </div>
             </div>
+
             @if (!currentPlayer()?.isHost) {
-              <small>Somente o host pode alterar estas opções.</small>
+              <div
+                class="lobby-readiness"
+                [class.lobby-readiness--ready]="currentPlayer()?.isReady"
+              >
+                <div>
+                  <strong>{{
+                    currentPlayer()?.isReady ? 'Você está pronto!' : 'Tudo certo por aí?'
+                  }}</strong>
+                  <small>Avise o host quando puder começar.</small>
+                </div>
+                <button
+                  class="ready-toggle"
+                  type="button"
+                  role="switch"
+                  [attr.aria-checked]="currentPlayer()?.isReady ?? false"
+                  [disabled]="actionPending() || realtime.state() !== 'connected'"
+                  (click)="toggleReady()"
+                >
+                  <span class="ready-toggle__track"><i></i></span>
+                  <span>{{
+                    currentPlayer()?.isReady ? 'Estou pronto' : 'Marcar como pronto'
+                  }}</span>
+                </button>
+              </div>
             }
-          </div>
 
-          @if (!currentPlayer()?.isHost) {
-            <button
-              class="ready-toggle"
-              type="button"
-              role="switch"
-              [attr.aria-checked]="currentPlayer()?.isReady ?? false"
-              [disabled]="actionPending() || realtime.state() !== 'connected'"
-              (click)="toggleReady()"
-            >
-              <span class="ready-toggle__track"><i></i></span>
-              Estou pronto
-            </button>
-          } @else {
-            <span class="host-ready">
-              <ng-icon name="lucideCheck" aria-hidden="true" />
-              Host pronto
+            @if (!currentPlayer()?.isHost) {
+              <small class="lobby-settings__hint"
+                >Somente o host pode alterar as configurações.</small
+              >
+            }
+          </aside>
+        </div>
+
+        <footer class="lobby-start-card">
+          <div
+            class="lobby-start-card__status"
+            [class.lobby-start-card__status--ready]="lobby.canStart"
+          >
+            <span>
+              <ng-icon [name]="lobby.canStart ? 'lucideCheck' : 'lucideClock'" aria-hidden="true" />
             </span>
-          }
-        </section>
-
-        <footer class="lobby-footer">
-          <p>
-            <ng-icon name="lucideClock" aria-hidden="true" />
-            {{ lobby.canStart ? 'Todos estão prontos.' : 'Aguardando pelo menos mais um jogador.' }}
-          </p>
+            <div>
+              <strong>{{
+                lobby.canStart ? 'Todo mundo pronto!' : 'A partida começa em breve'
+              }}</strong>
+              <p>
+                {{
+                  lobby.canStart
+                    ? 'As configurações estão definidas. É só começar.'
+                    : lobby.players.length < 2
+                      ? 'Convide pelo menos mais um jogador para formar a sala.'
+                      : 'Aguardando os outros jogadores confirmarem que estão prontos.'
+                }}
+              </p>
+            </div>
+          </div>
           @if (currentPlayer()?.isHost) {
             <button
-              class="button button--primary button--large"
+              class="button button--primary button--large lobby-start-button"
               type="button"
               [disabled]="!lobby.canStart || actionPending() || realtime.state() !== 'connected'"
               (click)="startGame()"
@@ -272,13 +428,31 @@
               <ng-icon name="lucidePlay" aria-hidden="true" />
               Iniciar partida
             </button>
+          } @else {
+            <span class="lobby-start-card__waiting">O host iniciará a partida.</span>
           }
         </footer>
-
-        @if (actionMessage()) {
-          <p class="lobby-notice" aria-live="polite">{{ actionMessage() }}</p>
-        }
       </main>
+
+      @if (actionMessage()) {
+        <div class="lobby-toast" role="status" aria-live="polite">
+          <span class="lobby-toast__icon">
+            <ng-icon name="lucideCircleAlert" aria-hidden="true" />
+          </span>
+          <span>
+            <strong>Não foi possível concluir</strong>
+            <small>{{ actionMessage() }}</small>
+          </span>
+          <button
+            type="button"
+            aria-label="Fechar aviso"
+            title="Fechar aviso"
+            (click)="dismissActionMessage()"
+          >
+            <ng-icon name="lucideX" aria-hidden="true" />
+          </button>
+        </div>
+      }
     } @else if (lobby.status === 'InProgress' || lobby.status === 'Finished') {
       <app-game-phase [gameCode]="lobby.code" />
     } @else {

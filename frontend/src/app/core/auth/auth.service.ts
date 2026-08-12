@@ -1,17 +1,29 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, of, tap, throwError } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  defer,
+  finalize,
+  map,
+  of,
+  shareReplay,
+  switchMap,
+  tap,
+  throwError,
+} from 'rxjs';
 
 import { ApiProblemError } from '@core/models/problem-details.model';
 import { apiUrl } from '@core/http/api-url';
 
-import { AuthExchangeResponse, SessionUser } from './auth.models';
+import { AuthExchangeResponse, AuthStatusResponse, SessionUser } from './auth.models';
 import { SessionTokenService } from './session-token.service';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly http = inject(HttpClient);
   private readonly session = inject(SessionTokenService);
+  private restoreRequest: Observable<SessionUser | null> | null = null;
 
   readonly user = this.session.user;
   readonly isAuthenticated = this.session.isAuthenticated;
@@ -19,16 +31,25 @@ export class AuthService {
   exchange(code: string): Observable<AuthExchangeResponse> {
     return this.http
       .post<AuthExchangeResponse>(apiUrl('/auth/exchange'), { code })
-      .pipe(tap((response) => this.session.set(response.accessToken, response.user)));
+      .pipe(tap((response) => this.session.setSession(response.user, response.csrfToken)));
   }
 
   restore(): Observable<SessionUser | null> {
-    if (!this.session.get()) {
-      return of(null);
+    if (this.restoreRequest) {
+      return this.restoreRequest;
     }
 
-    return this.http.get<SessionUser>(apiUrl('/auth/me')).pipe(
-      tap((user) => this.session.setUser(user)),
+    // The session is represented by the HttpOnly cookie. Once the bootstrap
+    // request has populated the in-memory user, avoid asking the API again on
+    // every guarded page or room action during the same SPA session.
+    const currentUser = this.session.user();
+    if (currentUser && this.session.getCsrfToken()) {
+      return of(currentUser);
+    }
+
+    const request = this.http.get<AuthStatusResponse>(apiUrl('/auth/me')).pipe(
+      tap((response) => this.session.setSession(response.user, response.csrfToken)),
+      map((response) => response.user),
       catchError((error: unknown) => {
         if (error instanceof ApiProblemError && error.status === 401) {
           this.session.clear();
@@ -37,7 +58,15 @@ export class AuthService {
 
         return throwError(() => error);
       }),
+      finalize(() => {
+        if (this.restoreRequest === request) {
+          this.restoreRequest = null;
+        }
+      }),
+      shareReplay({ bufferSize: 1, refCount: false }),
     );
+    this.restoreRequest = request;
+    return request;
   }
 
   startDiscordLogin(returnUrl: string): void {
@@ -46,7 +75,28 @@ export class AuthService {
   }
 
   logout(): void {
+    this.http.post<void>(apiUrl('/auth/logout'), {}).subscribe({ error: () => undefined });
     this.session.clear();
+  }
+
+  deleteAccount(confirmation: string): Observable<void> {
+    return defer(() => {
+      const session = this.session.user();
+      const sessionRequest = this.session.getCsrfToken()
+        ? of(session)
+        : this.restore();
+
+      return sessionRequest.pipe(
+        switchMap((user) => {
+          if (!user) {
+            return throwError(() => new ApiProblemError({ code: 'user_not_found' }, 401));
+          }
+
+          return this.http.delete<void>(apiUrl('/auth/account'), { body: { confirmation } });
+        }),
+      );
+    })
+      .pipe(tap(() => this.session.clear()));
   }
 }
 

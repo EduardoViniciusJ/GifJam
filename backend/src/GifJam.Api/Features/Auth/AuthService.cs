@@ -86,7 +86,7 @@ public sealed class AuthService(
         return new(exchangeCode, returnUrl);
     }
 
-    public async Task<AuthResponse> ExchangeAsync(
+    public async Task<AuthSessionResult> ExchangeAsync(
         AuthExchangeRequest request,
         CancellationToken cancellationToken)
     {
@@ -116,7 +116,7 @@ public sealed class AuthService(
 
         var user = await dbContext.Users.SingleAsync(user => user.Id == candidate.UserId, cancellationToken);
         var token = jwtTokenService.Create(user);
-        return new(token.AccessToken, token.ExpiresAt, MapUser(user));
+        return new(token.AccessToken, token.ExpiresAt, await MapUserAsync(user, cancellationToken));
     }
 
     public async Task<AuthUserResponse> GetCurrentUserAsync(Guid userId, CancellationToken cancellationToken)
@@ -125,7 +125,56 @@ public sealed class AuthService(
             .SingleOrDefaultAsync(savedUser => savedUser.Id == userId, cancellationToken)
             ?? throw new ApiException("user_not_found", "The authenticated user was not found.", StatusCodes.Status401Unauthorized);
 
-        return MapUser(user);
+        return await MapUserAsync(user, cancellationToken);
+    }
+
+    public async Task DeleteAccountAsync(Guid userId, string confirmation, CancellationToken cancellationToken)
+    {
+        if (!string.Equals(confirmation?.Trim(), "EXCLUIR", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ApiException(
+                "account_deletion_confirmation_required",
+                "Type EXCLUIR to confirm account deletion.",
+                StatusCodes.Status400BadRequest);
+        }
+
+        var userExists = await dbContext.Users.AnyAsync(
+            candidate => candidate.Id == userId,
+            cancellationToken);
+        if (!userExists)
+        {
+            // Deletion is intentionally idempotent. If a previous request
+            // removed the row but the client did not receive the response,
+            // this request must still clear the session cookie.
+            return;
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var hostedGameIds = await dbContext.Games
+            .Where(game => game.HostUserId == userId)
+            .Select(game => game.Id)
+            .ToArrayAsync(cancellationToken);
+
+        // Hosted games own their rounds and submissions. Removing them avoids
+        // leaving a foreign key pointing at a deleted host account.
+        if (hostedGameIds.Length > 0)
+        {
+            await dbContext.Games
+                .Where(game => hostedGameIds.Contains(game.Id))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await dbContext.GifVotes.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.PhraseVotes.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.GifSubmissions.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.Phrases.Where(item => item.UserId == userId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.UserId, (Guid?)null), cancellationToken);
+        await dbContext.GamePlayers.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.MatchmakingTickets.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.AuthExchangeCodes.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.Users.Where(item => item.Id == userId).ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public string ReadReturnUrl(string? state) => stateService.ReadReturnUrl(state);
@@ -150,12 +199,23 @@ public sealed class AuthService(
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 
-    private static AuthUserResponse MapUser(User user) => new(
-        user.Id,
-        user.DiscordId,
-        user.Username,
-        user.DisplayName,
-        user.AvatarUrl);
+    private async Task<AuthUserResponse> MapUserAsync(User user, CancellationToken cancellationToken)
+    {
+        int? rank = user.TotalScore > 0
+            ? 1 + await dbContext.Users.CountAsync(
+                candidate => candidate.TotalScore > user.TotalScore,
+                cancellationToken)
+            : null;
+
+        return new(
+            user.Id,
+            user.DiscordId,
+            user.Username,
+            user.DisplayName,
+            user.AvatarUrl,
+            user.TotalScore,
+            rank);
+    }
 
     private static ApiException InvalidExchangeCode() => new(
         "invalid_exchange_code",

@@ -16,14 +16,14 @@
     </nav>
 
     @if (isAuthenticated()) {
-      <button class="session-profile" type="button" title="Sair" (click)="logout()">
+      <button class="session-profile" type="button" title="Abrir perfil" (click)="openProfile()">
         @if (user()?.avatarUrl; as avatarUrl) {
           <img [src]="avatarUrl" width="36" height="36" alt="" />
         } @else {
           <span class="avatar-fallback">{{ user()?.displayName?.charAt(0) ?? 'G' }}</span>
         }
         <span>{{ user()?.displayName ?? 'Conta conectada' }}</span>
-        <ng-icon name="lucideLogOut" aria-hidden="true" />
+        <ng-icon name="lucideArrowRight" aria-hidden="true" />
       </button>
     } @else {
       <button class="button button--header" type="button" (click)="login()">

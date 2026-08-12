@@ -57,6 +57,7 @@ export class MatchmakingFacade {
   private readonly serverClockOffsetMs = signal(0);
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private recoveryOperation: Promise<void> | null = null;
+  private lastRecoveryAttemptAt = 0;
 
   async initialize(): Promise<void> {
     if (!this.auth.isAuthenticated() || this.initialized) {
@@ -207,6 +208,13 @@ export class MatchmakingFacade {
     if (this.recoveryOperation || !this.isWaiting()) {
       return;
     }
+
+    const now = Date.now();
+    if (now - this.lastRecoveryAttemptAt < 3_000) {
+      return;
+    }
+
+    this.lastRecoveryAttemptAt = now;
 
     const operation = this.refreshStatus();
     this.recoveryOperation = operation;

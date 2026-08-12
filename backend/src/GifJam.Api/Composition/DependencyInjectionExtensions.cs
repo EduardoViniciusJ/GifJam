@@ -158,7 +158,13 @@ public static class DependencyInjectionExtensions
                 {
                     OnMessageReceived = context =>
                     {
-                        if (context.Request.Path.StartsWithSegments("/hubs/game"))
+                        if (string.IsNullOrWhiteSpace(context.Token))
+                        {
+                            context.Token = context.Request.Cookies[AuthEndpoints.SessionCookieName];
+                        }
+
+                        if (string.IsNullOrWhiteSpace(context.Token) &&
+                            context.Request.Path.StartsWithSegments("/hubs/game"))
                         {
                             context.Token = context.Request.Query["access_token"];
                         }

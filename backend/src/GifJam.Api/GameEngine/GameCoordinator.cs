@@ -27,6 +27,9 @@ public sealed class GameCoordinator(IGameRoundService roundService) : IGameRound
     public Task<PlayerGameSnapshot> SetResultsReadyAsync(string gameCode, Guid userId, CancellationToken cancellationToken) =>
         roundService.SetResultsReadyAsync(gameCode, userId, cancellationToken);
 
+    public Task ProcessExpiredRoundAsync(string gameCode, CancellationToken cancellationToken) =>
+        roundService.ProcessExpiredRoundAsync(gameCode, cancellationToken);
+
     public Task ProcessExpiredRoundsAsync(CancellationToken cancellationToken) =>
         roundService.ProcessExpiredRoundsAsync(cancellationToken);
 }

@@ -1,3 +1,4 @@
+using GifJam.Api.Common.Auth;
 using GifJam.Api.Common.Health;
 using GifJam.Api.Common.Observability;
 using GifJam.Api.Composition;
@@ -57,6 +58,7 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
 app.UseHttpsRedirection();
 app.UseCors("frontend");
 app.UseAuthentication();
+app.UseGifJamCsrf();
 app.UseRateLimiter();
 app.UseAuthorization();
 

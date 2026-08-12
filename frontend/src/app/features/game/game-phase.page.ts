@@ -20,7 +20,7 @@ import {
   lucideUsers,
   lucideVote,
 } from '@ng-icons/lucide';
-import { GameFacade } from '@features/game/state/game.facade';
+import { GameFacade, GifCategory } from '@features/game/state/game.facade';
 import { PlayerMentionTextComponent } from '@features/game/ui/player-mention-text/player-mention-text.component';
 
 @Component({
@@ -62,7 +62,7 @@ export class GamePhasePage {
   readonly selectedPhraseId = this.facade.selectedPhraseId;
   readonly selectedGifId = this.facade.selectedGifId;
   readonly gifQuery = this.facade.gifQuery;
-  readonly gifSuggestions = this.facade.gifSuggestions;
+  readonly gifCategories: GifCategory[] = this.facade.gifCategories;
   readonly gifResults = this.facade.gifResults;
   readonly gifResultsCount = this.facade.gifResultsCount;
   readonly nextCursor = this.facade.nextCursor;

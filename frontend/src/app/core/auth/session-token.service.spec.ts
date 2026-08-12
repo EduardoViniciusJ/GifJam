@@ -1,25 +1,31 @@
 import { SessionTokenService } from './session-token.service';
 
 describe('SessionTokenService', () => {
-  beforeEach(() => {
-    sessionStorage.clear();
-  });
-
-  it('discards malformed persisted user data', () => {
-    sessionStorage.setItem('gifjam.session.user', JSON.stringify({ id: 'missing-fields' }));
-
+  it('starts without a client-side secret', () => {
     const service = new SessionTokenService();
 
     expect(service.user()).toBeNull();
-    expect(sessionStorage.getItem('gifjam.session.user')).toBeNull();
+    expect(service.get()).toBeNull();
   });
 
-  it('normalizes and keeps a non-empty token', () => {
+  it('keeps only the CSRF proof in memory and clears it on logout', () => {
     const service = new SessionTokenService();
+    service.setSession(
+      {
+        id: 'user-id',
+        discordId: 'discord-id',
+        username: 'player',
+        displayName: 'Player',
+        avatarUrl: null,
+      },
+      'csrf-token',
+    );
 
-    service.set('  jwt-token  ');
+    expect(service.get()).toBeNull();
+    expect(service.getCsrfToken()).toBe('csrf-token');
 
-    expect(service.get()).toBe('jwt-token');
-    expect(service.isAuthenticated()).toBe(true);
+    service.clear();
+
+    expect(service.getCsrfToken()).toBeNull();
   });
 });

@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using GifJam.Api.Common.Random;
 
 namespace GifJam.Api.Features.AiPhrases;
@@ -9,22 +11,29 @@ public sealed partial class AiPhraseGenerationService(
 {
     private static readonly string[] GenericFallbacks =
     [
-        "Quando voce finge que entendeu a explicacao e alguem pede um resumo.",
-        "Quando o plano parecia perfeito ate chegar a hora de executar.",
-        "Quando voce abre a camera frontal sem querer em publico.",
-        "Quando o grupo diz que vai sair cedo e o sol comeca a nascer.",
-        "Quando a reuniao poderia ter sido uma mensagem de duas linhas.",
-        "Quando voce lembra de uma vergonha antiga bem na hora de dormir."
+        "Voce finge que entendeu a explicacao e alguem pede um resumo.",
+        "O plano parecia perfeito ate chegar a hora de executar.",
+        "A camera frontal abre sem querer bem no meio do publico.",
+        "O grupo prometeu sair cedo, mas o sol ja esta nascendo.",
+        "Uma reuniao que poderia ter sido uma mensagem de duas linhas.",
+        "Aquela vergonha antiga decide voltar justo na hora de dormir."
     ];
 
     private static readonly string[] PairedFallbacks =
     [
-        "Quando {0} encontra {1} na rua depois de ignorar tres mensagens.",
-        "Quando {0} confia em {1} para escolher o caminho mais rapido.",
-        "Quando {0} percebe que {1} contou aquela historia para todo mundo.",
-        "Quando {0} e {1} dizem que desta vez o plano vai dar certo.",
-        "Quando {0} tenta explicar para {1} que aquilo nao foi de proposito.",
-        "Quando {0} ve {1} chegando com mais uma ideia duvidosa."
+        "{0} encontra {1} na rua depois de ignorar tres mensagens.",
+        "{0} confia em {1} para escolher o caminho mais rapido.",
+        "{0} percebe que {1} contou aquela historia para todo mundo.",
+        "{0} e {1} juram que desta vez o plano vai dar certo.",
+        "{0} tenta explicar a {1} que aquilo nao foi de proposito.",
+        "{0} ve {1} chegando com mais uma ideia duvidosa."
+    ];
+
+    private static readonly HashSet<string> SimilarityStopWords =
+    [
+        "a", "as", "ao", "aos", "com", "como", "da", "das", "de", "do", "dos", "e", "em", "entre",
+        "essa", "esse", "esta", "este", "foi", "na", "nas", "no", "nos", "o", "os", "para", "por",
+        "que", "se", "sem", "um", "uma", "umas", "uns", "vai", "quando", "voce", "voces"
     ];
 
     public async Task<IReadOnlyList<string>> GenerateAsync(
@@ -114,12 +123,81 @@ public sealed partial class AiPhraseGenerationService(
             ordered[index] = text;
         }
 
-        if (ordered.Distinct(StringComparer.OrdinalIgnoreCase).Count() != ordered.Length)
+        if (ordered.Distinct(StringComparer.OrdinalIgnoreCase).Count() != ordered.Length ||
+            ContainsSimilarPhrases(ordered, slots))
         {
-            throw new InvalidOperationException("The AI provider returned duplicate phrases.");
+            throw new InvalidOperationException("The AI provider returned duplicate or overly similar phrases.");
         }
 
         return ordered;
+    }
+
+    private static bool ContainsSimilarPhrases(IReadOnlyList<string> phrases, IReadOnlyList<AiPhraseSlot> slots)
+    {
+        var playerNameTokens = slots
+            .SelectMany(slot => slot.RequiredPlayerNames)
+            .SelectMany(Tokenize)
+            .ToHashSet(StringComparer.Ordinal);
+        var signatures = phrases
+            .Select(phrase => Tokenize(phrase)
+                .Where(token => !playerNameTokens.Contains(token) && !SimilarityStopWords.Contains(token))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray())
+            .ToArray();
+
+        for (var leftIndex = 0; leftIndex < signatures.Length; leftIndex++)
+        {
+            for (var rightIndex = leftIndex + 1; rightIndex < signatures.Length; rightIndex++)
+            {
+                if (AreSimilar(signatures[leftIndex], signatures[rightIndex]))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool AreSimilar(string[] left, string[] right)
+    {
+        if (left.Length == 0 || right.Length == 0)
+        {
+            return left.Length == right.Length;
+        }
+
+        if (string.Equals(left[0], right[0], StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var shared = left.Intersect(right, StringComparer.Ordinal).Count();
+        var smallest = Math.Min(left.Length, right.Length);
+        if (shared >= 2 && (double)shared / smallest >= 0.7)
+        {
+            return true;
+        }
+
+        return shared == 1 && smallest <= 2;
+    }
+
+    private static IEnumerable<string> Tokenize(string text)
+    {
+        var normalized = text.Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            builder.Append(char.IsLetterOrDigit(character) ? char.ToLowerInvariant(character) : ' ');
+        }
+
+        return builder
+            .ToString()
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 
     private static string[] CreateFallbacks(AiPhraseSlot[] slots, int roundNumber)

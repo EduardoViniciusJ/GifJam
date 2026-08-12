@@ -10,6 +10,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { firstValueFrom } from 'rxjs';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowRight,
@@ -98,7 +99,7 @@ export class HomePage implements OnInit, OnDestroy {
 
     const code = this.roomCode.value;
     this.joiningRoom.set(true);
-    if (!this.isAuthenticated()) {
+    if (!(await this.hasAuthenticatedSession())) {
       this.auth.startDiscordLogin(`/sala/${code.toLowerCase()}`);
       return;
     }
@@ -113,8 +114,8 @@ export class HomePage implements OnInit, OnDestroy {
     }
   }
 
-  createRoom(): void {
-    if (this.isAuthenticated()) {
+  async createRoom(): Promise<void> {
+    if (await this.hasAuthenticatedSession()) {
       void this.router.navigate(['/sala', 'nova']);
       return;
     }
@@ -122,14 +123,14 @@ export class HomePage implements OnInit, OnDestroy {
     this.auth.startDiscordLogin('/sala/nova');
   }
 
-  login(): void {
-    if (!this.isAuthenticated()) {
+  async login(): Promise<void> {
+    if (!(await this.hasAuthenticatedSession())) {
       this.auth.startDiscordLogin('/');
     }
   }
 
-  enterMatchmaking(): void {
-    if (!this.isAuthenticated()) {
+  async enterMatchmaking(): Promise<void> {
+    if (!(await this.hasAuthenticatedSession())) {
       this.auth.startDiscordLogin('/');
       return;
     }
@@ -144,5 +145,21 @@ export class HomePage implements OnInit, OnDestroy {
 
     await this.matchmaking.destroy();
     this.auth.logout();
+  }
+
+  openProfile(): void {
+    void this.router.navigate(['/perfil']);
+  }
+
+  private async hasAuthenticatedSession(): Promise<boolean> {
+    if (this.isAuthenticated()) {
+      return true;
+    }
+
+    try {
+      return Boolean(await firstValueFrom(this.auth.restore()));
+    } catch {
+      return false;
+    }
   }
 }
