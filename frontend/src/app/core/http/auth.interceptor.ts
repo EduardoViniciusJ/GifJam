@@ -3,6 +3,7 @@ import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 
 import { SessionTokenService } from '@core/auth/session-token.service';
+import { ApiProblemError } from '@core/models/problem-details.model';
 import { apiUrl } from './api-url';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
@@ -26,7 +27,10 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   ).pipe(
     catchError((error: unknown) => {
-      if (error instanceof HttpErrorResponse && error.status === 401) {
+      if (
+        (error instanceof HttpErrorResponse && error.status === 401) ||
+        (error instanceof ApiProblemError && error.status === 401)
+      ) {
         session.clear();
       }
 

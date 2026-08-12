@@ -12,6 +12,7 @@ import {
 import { catchError, of } from 'rxjs';
 
 import { AuthService } from '@core/auth/auth.service';
+import { ApiProblemError } from '@core/models/problem-details.model';
 import { BrandComponent } from '@shared/ui/brand/brand.component';
 
 @Component({
@@ -276,9 +277,13 @@ export class ProfilePage implements OnInit {
     this.errorMessage.set('');
     this.auth.deleteAccount(this.confirmation.value).subscribe({
       next: () => void this.router.navigateByUrl('/'),
-      error: () => {
+      error: (error: unknown) => {
         this.deleting.set(false);
-        this.errorMessage.set('Não foi possível excluir a conta. Tente novamente.');
+        this.errorMessage.set(
+          error instanceof ApiProblemError
+            ? error.message
+            : 'Não foi possível excluir a conta. Tente novamente.',
+        );
       },
     });
   }

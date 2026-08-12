@@ -28,6 +28,7 @@ export const routes: Routes = [
   {
     path: 'perfil',
     title: 'Meu perfil | GifJam',
+    canActivate: [authGuard],
     loadComponent: () => import('@features/profile/profile.page').then((page) => page.ProfilePage),
   },
   { path: '**', redirectTo: '' },

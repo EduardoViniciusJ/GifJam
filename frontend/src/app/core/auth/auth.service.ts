@@ -1,6 +1,17 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, catchError, finalize, map, of, shareReplay, tap, throwError } from 'rxjs';
+import {
+  Observable,
+  catchError,
+  defer,
+  finalize,
+  map,
+  of,
+  shareReplay,
+  switchMap,
+  tap,
+  throwError,
+} from 'rxjs';
 
 import { ApiProblemError } from '@core/models/problem-details.model';
 import { apiUrl } from '@core/http/api-url';
@@ -32,7 +43,7 @@ export class AuthService {
     // request has populated the in-memory user, avoid asking the API again on
     // every guarded page or room action during the same SPA session.
     const currentUser = this.session.user();
-    if (currentUser) {
+    if (currentUser && this.session.getCsrfToken()) {
       return of(currentUser);
     }
 
@@ -69,8 +80,22 @@ export class AuthService {
   }
 
   deleteAccount(confirmation: string): Observable<void> {
-    return this.http
-      .delete<void>(apiUrl('/auth/account'), { body: { confirmation } })
+    return defer(() => {
+      const session = this.session.user();
+      const sessionRequest = this.session.getCsrfToken()
+        ? of(session)
+        : this.restore();
+
+      return sessionRequest.pipe(
+        switchMap((user) => {
+          if (!user) {
+            return throwError(() => new ApiProblemError({ code: 'user_not_found' }, 401));
+          }
+
+          return this.http.delete<void>(apiUrl('/auth/account'), { body: { confirmation } });
+        }),
+      );
+    })
       .pipe(tap(() => this.session.clear()));
   }
 }

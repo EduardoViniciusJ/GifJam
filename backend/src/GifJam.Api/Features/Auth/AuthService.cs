@@ -130,7 +130,7 @@ public sealed class AuthService(
 
     public async Task DeleteAccountAsync(Guid userId, string confirmation, CancellationToken cancellationToken)
     {
-        if (!string.Equals(confirmation, "EXCLUIR", StringComparison.Ordinal))
+        if (!string.Equals(confirmation?.Trim(), "EXCLUIR", StringComparison.OrdinalIgnoreCase))
         {
             throw new ApiException(
                 "account_deletion_confirmation_required",
@@ -138,8 +138,16 @@ public sealed class AuthService(
                 StatusCodes.Status400BadRequest);
         }
 
-        var user = await dbContext.Users.SingleOrDefaultAsync(candidate => candidate.Id == userId, cancellationToken)
-            ?? throw new ApiException("user_not_found", "The authenticated user was not found.", StatusCodes.Status401Unauthorized);
+        var userExists = await dbContext.Users.AnyAsync(
+            candidate => candidate.Id == userId,
+            cancellationToken);
+        if (!userExists)
+        {
+            // Deletion is intentionally idempotent. If a previous request
+            // removed the row but the client did not receive the response,
+            // this request must still clear the session cookie.
+            return;
+        }
 
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
 
@@ -164,6 +172,7 @@ public sealed class AuthService(
             .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.UserId, (Guid?)null), cancellationToken);
         await dbContext.GamePlayers.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await dbContext.MatchmakingTickets.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await dbContext.AuthExchangeCodes.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await dbContext.Users.Where(item => item.Id == userId).ExecuteDeleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
