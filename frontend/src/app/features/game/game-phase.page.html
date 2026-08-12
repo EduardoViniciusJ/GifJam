@@ -85,7 +85,12 @@
               type="button"
               (click)="votePhrase(phrase)"
             >
-              <span>{{ phrase.text }}</span>
+              <span class="phrase-option__text">
+                <app-player-mention-text
+                  [text]="phrase.text"
+                  [playerNames]="isAiPhraseMode() ? playerNames() : []"
+                />
+              </span>
               @if (phrase.isOwn) {
                 <small>Esta é a sua frase</small>
               } @else if (selectedPhraseId() === phrase.id) {
@@ -113,7 +118,10 @@
           <div>
             <h2 id="gif-title">Escolha seu GIF</h2>
             <p class="selected-phrase">
-              {{ round.selectedPhrase?.text ?? 'Frase selecionada' }}
+              <app-player-mention-text
+                [text]="round.selectedPhrase?.text ?? 'Frase selecionada'"
+                [playerNames]="isAiPhraseMode() ? playerNames() : []"
+              />
             </p>
           </div>
         </div>
@@ -325,7 +333,12 @@
           @if (reveal.phrase; as phrase) {
             <div class="revealed-phrase">
               <span>Frase escolhida</span>
-              <strong>“{{ phrase.text }}”</strong>
+              <p class="revealed-phrase__text">
+                “<app-player-mention-text
+                  [text]="phrase.text"
+                  [playerNames]="phrase.source === 'Ai' ? playerNames() : []"
+                />”
+              </p>
               @if (phrase.author; as author) {
                 <small>por {{ author.displayName }}</small>
               } @else {

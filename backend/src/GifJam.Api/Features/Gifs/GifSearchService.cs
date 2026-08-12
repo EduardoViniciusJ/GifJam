@@ -45,7 +45,7 @@ public sealed partial class GifSearchService(
                 savedGame => savedGame.Code == normalizedCode && savedGame.Status != GameStatus.Closed,
                 cancellationToken)
             ?? throw new ApiException("game_not_found", "The game was not found.", StatusCodes.Status404NotFound);
-        if (game.Players.All(player => player.UserId != userId))
+        if (game.Players.All(player => player.UserId != userId || player.LeftAt is not null))
         {
             throw new ApiException("not_game_member", "You are not a member of this game.", StatusCodes.Status403Forbidden);
         }

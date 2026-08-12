@@ -41,15 +41,30 @@ describe('HomePage', () => {
     expect(fixture.nativeElement.textContent).toContain('Digite os 5 caracteres da sala.');
   });
 
-  it('navigates to a valid normalized room code', () => {
+  it('navigates once to a valid normalized room code for an authenticated player', async () => {
+    authenticate();
     const fixture = TestBed.createComponent(HomePage);
     const router = TestBed.inject(Router);
     const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
 
     fixture.componentInstance.roomCode.setValue('ABC12');
-    fixture.componentInstance.joinRoom();
+    const firstJoin = fixture.componentInstance.joinRoom();
+    const repeatedJoin = fixture.componentInstance.joinRoom();
+    await Promise.all([firstJoin, repeatedJoin]);
 
+    expect(navigate).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith(['/sala', 'ABC12']);
+  });
+
+  it('starts login with the room return URL for a logged-out player', () => {
+    const fixture = TestBed.createComponent(HomePage);
+    const auth = TestBed.inject(AuthService);
+    const startLogin = vi.spyOn(auth, 'startDiscordLogin').mockImplementation(() => undefined);
+
+    fixture.componentInstance.roomCode.setValue('ABC12');
+    void fixture.componentInstance.joinRoom();
+
+    expect(startLogin).toHaveBeenCalledWith('/sala/abc12');
   });
 
   it('hides the global ranking from logged-out visitors', async () => {

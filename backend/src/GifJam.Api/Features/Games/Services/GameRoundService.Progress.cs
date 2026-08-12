@@ -12,7 +12,10 @@ public sealed partial class GameRoundService
         Round round,
         Func<Round, Guid, bool> hasCompleted)
     {
-        var eligiblePlayers = game.Players.Where(player => player.IsConnected).Select(player => player.UserId).ToArray();
+        var eligiblePlayers = game.Players
+            .Where(player => player.LeftAt is null && player.IsConnected)
+            .Select(player => player.UserId)
+            .ToArray();
         var completed = eligiblePlayers.Count(playerId => hasCompleted(round, playerId));
         return new(completed, eligiblePlayers.Length, clock.UtcNow);
     }
@@ -20,7 +23,7 @@ public sealed partial class GameRoundService
     private SubmissionProgressSnapshot GetGifVotingProgress(Game game, Round round)
     {
         var eligiblePlayers = game.Players
-            .Where(player => player.IsConnected &&
+            .Where(player => player.LeftAt is null && player.IsConnected &&
                 round.GifSubmissions.Any(submission => submission.UserId != player.UserId))
             .Select(player => player.UserId)
             .ToArray();
@@ -31,7 +34,7 @@ public sealed partial class GameRoundService
     private SubmissionProgressSnapshot GetResultsReadyProgress(Game game, Round round)
     {
         var eligiblePlayers = game.Players
-            .Where(player => player.IsConnected)
+            .Where(player => player.LeftAt is null && player.IsConnected)
             .ToArray();
         var completed = eligiblePlayers.Count(
             player => player.ResultReadyRoundNumber == round.RoundNumber);

@@ -387,12 +387,14 @@ public sealed partial class GameRoundService(
         switch (round.Phase)
         {
             case RoundPhase.PhraseSubmission:
-                AdvanceFromPhraseSubmission(round);
-                phaseToPublish = round;
+                phaseToPublish = round.Phrases.Count == 0
+                    ? await CompleteResultsAsync(game, round, cancellationToken)
+                    : AdvanceFromPhraseSubmissionAndReturn(round);
                 break;
             case RoundPhase.PhraseVoting:
-                SelectWinningPhrase(round);
-                phaseToPublish = round;
+                phaseToPublish = round.Phrases.Count == 0
+                    ? await CompleteResultsAsync(game, round, cancellationToken)
+                    : SelectWinningPhraseAndReturn(round);
                 break;
             case RoundPhase.GifSubmission:
                 AdvanceFromGifSubmission(game, round);
@@ -416,6 +418,18 @@ public sealed partial class GameRoundService(
         await PublishTransitionAsync(game, phaseToPublish);
     }
 
+    private Round AdvanceFromPhraseSubmissionAndReturn(Round round)
+    {
+        AdvanceFromPhraseSubmission(round);
+        return round;
+    }
+
+    private Round SelectWinningPhraseAndReturn(Round round)
+    {
+        SelectWinningPhrase(round);
+        return round;
+    }
+
     private async Task<Guid> FindGameIdAsync(string gameCode, CancellationToken cancellationToken)
     {
         var normalizedCode = gameCode.Trim().ToUpperInvariant();
@@ -427,7 +441,7 @@ public sealed partial class GameRoundService(
         gameRepository.LoadAsync(gameId, cancellationToken);
 
     private static GamePlayer EnsureMember(Game game, Guid userId) =>
-        game.Players.SingleOrDefault(player => player.UserId == userId)
+        game.Players.SingleOrDefault(player => player.UserId == userId && player.LeftAt == null)
         ?? throw new ApiException("not_game_member", "You are not a member of this game.", StatusCodes.Status403Forbidden);
 
     private static Round GetCurrentRound(Game game) =>

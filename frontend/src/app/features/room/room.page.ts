@@ -8,6 +8,8 @@ import {
   lucideCopy,
   lucideCrown,
   lucideLink,
+  lucideLoaderCircle,
+  lucideLogOut,
   lucidePlay,
   lucideRefreshCw,
   lucideSparkles,
@@ -36,6 +38,8 @@ import { RoomFacade } from './state/room.facade';
       lucideCopy,
       lucideCrown,
       lucideLink,
+      lucideLoaderCircle,
+      lucideLogOut,
       lucidePlay,
       lucideRefreshCw,
       lucideSparkles,
@@ -60,6 +64,7 @@ export class RoomPage implements OnInit, OnDestroy {
   readonly errorMessage = this.facade.errorMessage;
   readonly actionMessage = this.facade.actionMessage;
   readonly actionPending = this.facade.actionPending;
+  readonly leavingRoom = this.facade.leavingRoom;
   readonly copied = this.facade.copied;
   readonly currentPlayer = this.facade.currentPlayer;
   readonly connectionLabel = this.facade.connectionLabel;
@@ -91,6 +96,10 @@ export class RoomPage implements OnInit, OnDestroy {
 
   async startGame(): Promise<void> {
     await this.facade.startGame();
+  }
+
+  async leaveRoom(): Promise<void> {
+    await this.facade.leaveRoom();
   }
 
   async copyInvite(): Promise<void> {

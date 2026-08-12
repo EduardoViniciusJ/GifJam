@@ -25,14 +25,12 @@ public sealed partial class MatchmakingService(
         await using var lease = await queueLock.AcquireAsync(cancellationToken);
         await ProcessDueBatchAndNotifyAsync(cancellationToken);
 
-        var currentTicket = await dbContext.MatchmakingTickets
-            .Include(ticket => ticket.Batch)
-            .ThenInclude(batch => batch.Tickets)
-            .Where(ticket => ticket.UserId == userId && ticket.Status == MatchmakingTicketStatus.Waiting)
-            .SingleOrDefaultAsync(cancellationToken);
+        var currentTicket = await LoadActiveTicketAsync(userId, cancellationToken);
         if (currentTicket is not null)
         {
-            return CreateWaitingSnapshot(currentTicket.Batch, clock.UtcNow);
+            return currentTicket.Status == MatchmakingTicketStatus.Waiting
+                ? CreateWaitingSnapshot(currentTicket.Batch, clock.UtcNow)
+                : CreateMatchedSnapshot(currentTicket.Batch, clock.UtcNow);
         }
 
         await LeaveActiveGamesAsync(userId, cancellationToken);
@@ -116,14 +114,18 @@ public sealed partial class MatchmakingService(
         Guid userId,
         CancellationToken cancellationToken)
     {
-        var ticket = await dbContext.MatchmakingTickets
-            .Include(savedTicket => savedTicket.Batch)
-            .ThenInclude(batch => batch.Tickets)
-            .Where(savedTicket => savedTicket.UserId == userId && savedTicket.Status == MatchmakingTicketStatus.Waiting)
-            .SingleOrDefaultAsync(cancellationToken);
-        return ticket is null
-            ? CreateNotInQueueSnapshot(clock.UtcNow)
-            : CreateWaitingSnapshot(ticket.Batch, clock.UtcNow);
+        await using var lease = await queueLock.AcquireAsync(cancellationToken);
+        await ProcessDueBatchAndNotifyAsync(cancellationToken);
+
+        var ticket = await LoadActiveTicketAsync(userId, cancellationToken);
+        if (ticket is null)
+        {
+            return CreateNotInQueueSnapshot(clock.UtcNow);
+        }
+
+        return ticket.Status == MatchmakingTicketStatus.Waiting
+            ? CreateWaitingSnapshot(ticket.Batch, clock.UtcNow)
+            : CreateMatchedSnapshot(ticket.Batch, clock.UtcNow);
     }
 
     public async Task ProcessDueBatchesAsync(CancellationToken cancellationToken)
@@ -158,7 +160,8 @@ public sealed partial class MatchmakingService(
         var activeGameCodes = await dbContext.Games
             .AsNoTracking()
             .Where(game => game.Status == GameStatus.Lobby || game.Status == GameStatus.InProgress)
-            .Where(game => game.Players.Any(player => player.UserId == userId))
+            .Where(game => game.Players.Any(player =>
+                player.UserId == userId && player.LeftAt == null))
             .OrderBy(game => game.CreatedAt)
             .Select(game => game.Code)
             .ToListAsync(cancellationToken);
@@ -221,6 +224,30 @@ public sealed partial class MatchmakingService(
             .OrderBy(batch => batch.CreatedAt)
             .FirstOrDefaultAsync(cancellationToken);
 
+    private async Task<MatchmakingTicket?> LoadActiveTicketAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var tickets = await dbContext.MatchmakingTickets
+            .Include(ticket => ticket.Batch)
+            .ThenInclude(batch => batch.Tickets)
+            .Include(ticket => ticket.Batch)
+            .ThenInclude(batch => batch.Game)
+            .Where(ticket => ticket.UserId == userId &&
+                (ticket.Status == MatchmakingTicketStatus.Waiting ||
+                 (ticket.Status == MatchmakingTicketStatus.Matched &&
+                  ticket.Batch.Game != null &&
+                  (ticket.Batch.Game.Status == GameStatus.Lobby ||
+                   ticket.Batch.Game.Status == GameStatus.InProgress) &&
+                  ticket.Batch.Game.Players.Any(player =>
+                      player.UserId == userId && player.LeftAt == null))))
+            .OrderByDescending(ticket => ticket.JoinedAt)
+            .ToListAsync(cancellationToken);
+
+        return tickets.SingleOrDefault(ticket => ticket.Status == MatchmakingTicketStatus.Waiting)
+            ?? tickets.FirstOrDefault(ticket => ticket.Status == MatchmakingTicketStatus.Matched);
+    }
+
     private async Task NotifyMatchAsync(MatchResult match, CancellationToken cancellationToken)
     {
         var snapshot = new MatchFoundSnapshot(
@@ -282,6 +309,22 @@ public sealed partial class MatchmakingService(
             match.GameCode,
             GameMode.Classic,
             now);
+
+    private static MatchmakingSnapshot CreateMatchedSnapshot(MatchmakingBatch batch, DateTimeOffset now)
+    {
+        var game = batch.Game
+            ?? throw new InvalidOperationException("A matched matchmaking batch must reference its game.");
+        return new(
+            MatchmakingStatus.Matched,
+            batch.Tickets.Count(ticket => ticket.Status == MatchmakingTicketStatus.Matched),
+            GameRules.MinimumPlayers,
+            GameRules.MaximumPlayers,
+            game.HostUserId,
+            null,
+            game.Code,
+            game.Mode,
+            now);
+    }
 
     private static MatchmakingSnapshot CreateNotInQueueSnapshot(DateTimeOffset now) =>
         new(

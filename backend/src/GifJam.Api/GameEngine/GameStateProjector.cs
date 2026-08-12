@@ -18,6 +18,7 @@ public sealed class GameStateProjector(IClock clock)
     public LobbySnapshot CreateLobbySnapshot(Game game)
     {
         var players = game.Players
+            .Where(player => player.LeftAt is null)
             .OrderBy(player => player.JoinedAt)
             .Select(player => new LobbyPlayerSnapshot(
                 player.UserId,
@@ -48,6 +49,7 @@ public sealed class GameStateProjector(IClock clock)
     public PresenceSnapshot CreatePresenceSnapshot(Game game) => new(
         game.Code,
         game.Players
+            .Where(player => player.LeftAt is null)
             .OrderBy(player => player.JoinedAt)
             .Select(player => new PresencePlayerSnapshot(player.UserId, player.IsConnected))
             .ToArray(),
@@ -108,7 +110,8 @@ public sealed class GameStateProjector(IClock clock)
             : [];
         var gifSelection = round.GifSubmissions.SingleOrDefault(submission => submission.UserId == userId);
         var game = round.Game;
-        var player = game.Players.Single(savedPlayer => savedPlayer.UserId == userId);
+        var player = game.Players.Single(savedPlayer =>
+            savedPlayer.UserId == userId && savedPlayer.LeftAt == null);
         var reveal = round.Phase is RoundPhase.Results or RoundPhase.Completed
             ? CreateRoundRevealSnapshot(round)
             : null;
@@ -186,6 +189,7 @@ public sealed class GameStateProjector(IClock clock)
     public RankingSnapshot CreateRankingSnapshot(Game game, bool isFinal)
     {
         var orderedPlayers = game.Players
+            .Where(player => player.LeftAt is null)
             .OrderByDescending(player => player.Score)
             .ThenBy(player => player.JoinedAt)
             .ToArray();

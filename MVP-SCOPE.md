@@ -48,7 +48,7 @@ Validar se grupos privados de amigos conseguem iniciar, concluir e querer repeti
 - Frases prontas, pacotes temáticos e conteúdo customizado pelo host.
 - Moderação avançada, denúncias e painel administrativo.
 - Aplicativo nativo, monetização, anúncios e assinatura.
-- Escala horizontal, Redis ou Azure SignalR Service.
+- Escala horizontal, Redis ou serviço de realtime gerenciado.
 
 ## Decisões de Escopo
 

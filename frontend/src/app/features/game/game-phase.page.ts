@@ -21,10 +21,11 @@ import {
   lucideVote,
 } from '@ng-icons/lucide';
 import { GameFacade } from '@features/game/state/game.facade';
+import { PlayerMentionTextComponent } from '@features/game/ui/player-mention-text/player-mention-text.component';
 
 @Component({
   selector: 'app-game-phase',
-  imports: [CommonModule, FormsModule, NgIcon, RouterLink],
+  imports: [CommonModule, FormsModule, NgIcon, PlayerMentionTextComponent, RouterLink],
   providers: [
     GameFacade,
     provideIcons({
@@ -55,6 +56,7 @@ export class GamePhasePage {
 
   readonly round = this.facade.round;
   readonly totalRounds = this.facade.totalRounds;
+  readonly playerNames = this.facade.playerNames;
   readonly isAiPhraseMode = this.facade.isAiPhraseMode;
   readonly phraseText = this.facade.phraseText;
   readonly selectedPhraseId = this.facade.selectedPhraseId;

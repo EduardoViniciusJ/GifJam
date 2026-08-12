@@ -270,7 +270,7 @@ public sealed class GameCoordinatorTests : IDisposable
     }
 
     [Fact]
-    public async Task RoundWithoutPhrasesMovesToResultsWithoutPoints()
+    public async Task RoundWithoutPhrasesSkipsEmptyResultsAndStartsNextRound()
     {
         var setup = await CreateReadyGameAsync();
         await StartGameAsync(setup);
@@ -283,10 +283,33 @@ public sealed class GameCoordinatorTests : IDisposable
         });
 
         await using var context = database.CreateDbContext();
-        var round = await context.Rounds.SingleAsync();
-        Assert.Equal(RoundPhase.Results, round.Phase);
-        Assert.Null(round.SelectedPhraseId);
+        var rounds = await context.Rounds.OrderBy(round => round.RoundNumber).ToArrayAsync();
+        Assert.Equal(2, rounds.Length);
+        Assert.Equal(RoundPhase.Completed, rounds[0].Phase);
+        Assert.Null(rounds[0].SelectedPhraseId);
+        Assert.Equal(RoundPhase.PhraseSubmission, rounds[1].Phase);
         Assert.All(await context.GamePlayers.ToArrayAsync(), player => Assert.Equal(0, player.Score));
+    }
+
+    [Fact]
+    public async Task PhraseVotingWithoutVotesStillSelectsAPhraseAtTimeout()
+    {
+        var setup = await CreateReadyGameAsync();
+        await StartGameAsync(setup);
+        await SubmitBothPhrasesAsync(setup);
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(21);
+
+        await WithCoordinatorAsync(async coordinator =>
+        {
+            await coordinator.ProcessExpiredRoundsAsync(CancellationToken.None);
+            return true;
+        });
+
+        await using var context = database.CreateDbContext();
+        var round = await context.Rounds.Include(savedRound => savedRound.Phrases).SingleAsync();
+        Assert.Equal(RoundPhase.GifSubmission, round.Phase);
+        Assert.Contains(round.Phrases, phrase => phrase.Id == round.SelectedPhraseId);
+        Assert.Empty(await context.PhraseVotes.ToArrayAsync());
     }
 
     [Fact]
@@ -319,15 +342,20 @@ public sealed class GameCoordinatorTests : IDisposable
         await StartGameAsync(setup);
         factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(61);
 
-        RoundPhase phase = RoundPhase.PhraseSubmission;
-        for (var attempt = 0; attempt < 30 && phase == RoundPhase.PhraseSubmission; attempt++)
+        var currentRoundNumber = 1;
+        for (var attempt = 0; attempt < 30 && currentRoundNumber == 1; attempt++)
         {
             await Task.Delay(100);
             await using var context = database.CreateDbContext();
-            phase = await context.Rounds.Select(round => round.Phase).SingleAsync();
+            currentRoundNumber = await context.Games.Select(game => game.CurrentRoundNumber).SingleAsync();
         }
 
-        Assert.Equal(RoundPhase.Results, phase);
+        Assert.Equal(2, currentRoundNumber);
+        await using var verificationContext = database.CreateDbContext();
+        var currentRound = await verificationContext.Rounds
+            .OrderByDescending(round => round.RoundNumber)
+            .FirstAsync();
+        Assert.Equal(RoundPhase.PhraseSubmission, currentRound.Phase);
     }
 
     [Fact]
