@@ -37,6 +37,19 @@ public sealed class GeminiAiPhraseProviderTests
             handler.RequestUrl);
         Assert.DoesNotContain("server-side-test-key", handler.RequestUrl, StringComparison.Ordinal);
         Assert.Contains("responseJsonSchema", handler.RequestBody, StringComparison.Ordinal);
+        using var requestPayload = JsonDocument.Parse(handler.RequestBody);
+        var systemPrompt = requestPayload.RootElement
+            .GetProperty("systemInstruction")
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString();
+        var userPrompt = requestPayload.RootElement
+            .GetProperty("contents")[0]
+            .GetProperty("parts")[0]
+            .GetProperty("text")
+            .GetString();
+        Assert.Contains("situação claramente fictícia", systemPrompt, StringComparison.Ordinal);
+        Assert.Contains("contexto não óbvio", userPrompt, StringComparison.Ordinal);
         Assert.Equal(["pair-1", "general-1"], result.Select(phrase => phrase.SlotId));
     }
 
