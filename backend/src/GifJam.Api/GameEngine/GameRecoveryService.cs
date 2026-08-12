@@ -13,7 +13,7 @@ public sealed partial class GameRecoveryService(
     public async Task RecoverAsync(CancellationToken cancellationToken)
     {
         var disconnectedPlayers = await dbContext.GamePlayers
-            .Where(player => player.IsConnected &&
+            .Where(player => player.LeftAt == null && player.IsConnected &&
                 (player.Game.Status == GameStatus.Lobby || player.Game.Status == GameStatus.InProgress))
             .ExecuteUpdateAsync(
                 updates => updates.SetProperty(player => player.IsConnected, false),

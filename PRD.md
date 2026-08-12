@@ -143,13 +143,13 @@ flowchart LR
 - PostgreSQL é a fonte persistente de verdade.
 - `GameEngine` serializa comandos por partida com lock em processo e transações EF Core.
 - `RoundScheduler` usa `BackgroundService` para prazos e recupera partidas abertas na inicialização.
-- Uma réplica da API no MVP; escala horizontal futura exigirá Azure SignalR/Redis e lock distribuído.
+- Uma réplica da API no MVP; escala horizontal futura exigirá um serviço de realtime/Redis e lock distribuído.
 - Eventos SignalR notificam mudanças; o cliente pode solicitar novo snapshot a qualquer momento.
 
 ### 7.2 Hospedagem
 
-- Angular estático no Cloudflare Pages.
-- API em Azure Container Apps, plano Consumption, `minReplicas: 0` e `maxReplicas: 1`.
+- Angular estático na Vercel.
+- API em uma VPS Hostinger, com uma réplica e container Docker.
 - PostgreSQL no Neon Free com conexão TLS e pooling Npgsql.
 - Domínios do frontend e API configurados explicitamente no CORS.
 - Segredos somente no ambiente da API: Discord client secret, KLIPY key, JWT signing key e connection string.
@@ -439,7 +439,7 @@ Cada transição é uma transação que verifica `Game.Version`, grava fase/praz
 7. Implementar votação de GIF, revelação, score e ranking final.
 8. Implementar reconexão, recuperação de prazo e limpeza de partidas.
 9. Finalizar experiência responsiva, acessibilidade e estados de falha.
-10. Executar E2E, publicar Cloudflare/Azure/Neon e realizar as 5 partidas de validação.
+10. Executar E2E, publicar Vercel/Hostinger/Neon e realizar as 5 partidas de validação.
 
 ## 19. Primeira Versão Jogável
 

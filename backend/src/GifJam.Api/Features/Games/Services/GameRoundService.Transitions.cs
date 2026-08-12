@@ -129,6 +129,7 @@ public sealed partial class GameRoundService
         if (isAiMode)
         {
             var playerNames = game.Players
+                .Where(player => player.LeftAt is null)
                 .OrderBy(player => player.JoinedAt)
                 .Select(player => player.User.DisplayName)
                 .ToArray();

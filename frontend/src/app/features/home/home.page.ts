@@ -5,6 +5,7 @@ import {
   OnDestroy,
   OnInit,
   inject,
+  signal,
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -58,6 +59,7 @@ export class HomePage implements OnInit, OnDestroy {
 
   readonly user = this.auth.user;
   readonly isAuthenticated = this.auth.isAuthenticated;
+  readonly joiningRoom = signal(false);
 
   readonly roomCode = new FormControl('', {
     nonNullable: true,
@@ -87,14 +89,28 @@ export class HomePage implements OnInit, OnDestroy {
     this.roomCode.setValue(normalized);
   }
 
-  joinRoom(): void {
+  async joinRoom(): Promise<void> {
     this.roomCode.markAsTouched();
 
-    if (this.roomCode.invalid) {
+    if (this.roomCode.invalid || this.joiningRoom()) {
       return;
     }
 
-    void this.router.navigate(['/sala', this.roomCode.value]);
+    const code = this.roomCode.value;
+    this.joiningRoom.set(true);
+    if (!this.isAuthenticated()) {
+      this.auth.startDiscordLogin(`/sala/${code.toLowerCase()}`);
+      return;
+    }
+
+    try {
+      const navigated = await this.router.navigate(['/sala', code]);
+      if (!navigated) {
+        this.joiningRoom.set(false);
+      }
+    } catch {
+      this.joiningRoom.set(false);
+    }
   }
 
   createRoom(): void {

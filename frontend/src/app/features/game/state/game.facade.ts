@@ -29,6 +29,9 @@ export class GameFacade {
 
   readonly round = this.store.round;
   readonly totalRounds = computed(() => this.store.lobby()?.totalRounds ?? 0);
+  readonly playerNames = computed(
+    () => this.store.lobby()?.players.map((player) => player.displayName) ?? [],
+  );
   readonly isAiPhraseMode = computed(() => this.store.lobby()?.mode === 'AiRandomPhrases');
   readonly phraseText = signal('');
   readonly selectedPhraseId = signal<string | null>(null);

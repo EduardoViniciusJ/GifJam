@@ -66,9 +66,14 @@
                 type="button"
                 aria-label="Entrar na sala"
                 title="Entrar na sala"
+                [disabled]="joiningRoom()"
                 (click)="joinRoom()"
               >
-                <ng-icon name="lucideArrowRight" aria-hidden="true" />
+                <ng-icon
+                  [name]="joiningRoom() ? 'lucideLoaderCircle' : 'lucideArrowRight'"
+                  [class.button-spinner]="joiningRoom()"
+                  aria-hidden="true"
+                />
               </button>
             </div>
             @if (roomCode.invalid && roomCode.touched) {

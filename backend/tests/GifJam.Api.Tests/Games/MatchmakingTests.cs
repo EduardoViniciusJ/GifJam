@@ -127,6 +127,40 @@ public sealed class MatchmakingTests : IDisposable
     }
 
     [Fact]
+    public async Task FourPlayerMatchIsRecoveredFromStatusWhenRealtimeEventIsMissed()
+    {
+        await database.ResetAsync();
+        var users = await SeedUsersAsync(4);
+        var userClients = users.Select(CreateClient).ToArray();
+
+        foreach (var client in userClients)
+        {
+            using var joined = await client.PostAsync("/api/matchmaking/join", content: null);
+            Assert.Equal(HttpStatusCode.OK, joined.StatusCode);
+        }
+
+        factory.Clock.UtcNow = factory.Clock.UtcNow.AddSeconds(30);
+        using var recoveredResponse = await userClients[0].GetAsync("/api/matchmaking/status");
+        var recovered = await ReadSnapshotAsync(recoveredResponse);
+
+        Assert.Equal(MatchmakingStatus.Matched, recovered.Status);
+        Assert.Equal(4, recovered.PlayerCount);
+        Assert.NotNull(recovered.GameCode);
+
+        using var repeatedJoinResponse = await userClients[0].PostAsync(
+            "/api/matchmaking/join",
+            content: null);
+        var repeatedJoin = await ReadSnapshotAsync(repeatedJoinResponse);
+        Assert.Equal(MatchmakingStatus.Matched, repeatedJoin.Status);
+        Assert.Equal(recovered.GameCode, repeatedJoin.GameCode);
+
+        await using var context = database.CreateDbContext();
+        var game = await context.Games.Include(savedGame => savedGame.Players).SingleAsync();
+        Assert.Equal(GameStatus.Lobby, game.Status);
+        Assert.Equal(4, game.Players.Count);
+    }
+
+    [Fact]
     public async Task SinglePlayerRemainsInQueueWithoutDeadline()
     {
         await database.ResetAsync();

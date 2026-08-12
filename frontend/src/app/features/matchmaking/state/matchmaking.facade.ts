@@ -56,6 +56,7 @@ export class MatchmakingFacade {
   private readonly clientNow = signal(Date.now());
   private readonly serverClockOffsetMs = signal(0);
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private recoveryOperation: Promise<void> | null = null;
 
   async initialize(): Promise<void> {
     if (!this.auth.isAuthenticated() || this.initialized) {
@@ -65,6 +66,10 @@ export class MatchmakingFacade {
     this.initialized = true;
     try {
       await this.refreshStatus();
+      if (this.snapshot()?.status === 'Matched') {
+        return;
+      }
+
       await this.connectRealtime();
     } catch (error: unknown) {
       this.initialized = false;
@@ -181,7 +186,12 @@ export class MatchmakingFacade {
       return;
     }
 
-    this.countdownTimer = setInterval(() => this.clientNow.set(Date.now()), 1_000);
+    this.countdownTimer = setInterval(() => {
+      this.clientNow.set(Date.now());
+      if (this.countdownSeconds() === 0) {
+        void this.recoverCompletedMatch();
+      }
+    }, 1_000);
   }
 
   private stopCountdown(): void {
@@ -191,6 +201,24 @@ export class MatchmakingFacade {
 
     clearInterval(this.countdownTimer);
     this.countdownTimer = null;
+  }
+
+  private async recoverCompletedMatch(): Promise<void> {
+    if (this.recoveryOperation || !this.isWaiting()) {
+      return;
+    }
+
+    const operation = this.refreshStatus();
+    this.recoveryOperation = operation;
+    try {
+      await operation;
+    } catch {
+      // The timer retries while the match remains unresolved.
+    } finally {
+      if (this.recoveryOperation === operation) {
+        this.recoveryOperation = null;
+      }
+    }
   }
 
   private errorMessage(error: unknown): string {

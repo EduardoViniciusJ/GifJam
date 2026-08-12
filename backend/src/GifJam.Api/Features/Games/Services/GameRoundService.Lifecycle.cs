@@ -28,8 +28,9 @@ public sealed partial class GameRoundService
             throw new ApiException("game_already_started", "The game has already started.", StatusCodes.Status409Conflict);
         }
 
-        if (game.Players.Count is < GameRules.MinimumPlayers or > GameRules.MaximumPlayers ||
-            game.Players.Any(player => player.UserId != userId && !player.IsReady))
+        var activePlayers = game.Players.Where(player => player.LeftAt is null).ToArray();
+        if (activePlayers.Length is < GameRules.MinimumPlayers or > GameRules.MaximumPlayers ||
+            activePlayers.Any(player => player.UserId != userId && !player.IsReady))
         {
             throw new ApiException(
                 "lobby_not_ready",
@@ -47,7 +48,7 @@ public sealed partial class GameRoundService
         await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        gameTelemetry.GameStarted(game.Code, game.Players.Count, game.TotalRounds);
+        gameTelemetry.GameStarted(game.Code, activePlayers.Length, game.TotalRounds);
         await PublishPhaseAsync(game, round);
         await realtimeNotifier.LobbyUpdatedAsync(
             game.Code,

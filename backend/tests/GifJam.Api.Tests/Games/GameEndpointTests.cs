@@ -101,6 +101,90 @@ public sealed class GameEndpointTests : IDisposable
     }
 
     [Fact]
+    public async Task HostLeavingTransfersOwnershipAndLastPlayerClosesTheRoom()
+    {
+        await database.ResetAsync();
+        var users = await SeedUsersAsync(2);
+        var hostClient = CreateClient(users[0]);
+        var guestClient = CreateClient(users[1]);
+        var created = await CreateGameAsync(hostClient);
+        using var joined = await guestClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/join",
+            content: null);
+        Assert.Equal(HttpStatusCode.OK, joined.StatusCode);
+
+        using var hostLeave = await hostClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/leave",
+            content: null);
+        using var guestSnapshotResponse = await guestClient.GetAsync(
+            $"/api/games/{created.Lobby.Code}");
+        using var formerHostSnapshot = await hostClient.GetAsync(
+            $"/api/games/{created.Lobby.Code}");
+
+        Assert.Equal(HttpStatusCode.NoContent, hostLeave.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, guestSnapshotResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, formerHostSnapshot.StatusCode);
+        var guestSnapshot = await ReadSnapshotAsync(guestSnapshotResponse);
+        var remainingPlayer = Assert.Single(guestSnapshot.Lobby.Players);
+        Assert.Equal(users[1].Id, remainingPlayer.UserId);
+        Assert.True(remainingPlayer.IsHost);
+        Assert.True(remainingPlayer.IsReady);
+
+        using var guestLeave = await guestClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/leave",
+            content: null);
+        using var closedRoom = await guestClient.GetAsync($"/api/games/{created.Lobby.Code}");
+        Assert.Equal(HttpStatusCode.NoContent, guestLeave.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, closedRoom.StatusCode);
+
+        await using var context = database.CreateDbContext();
+        var game = await context.Games.Include(savedGame => savedGame.Players).SingleAsync();
+        Assert.Equal(GameStatus.Closed, game.Status);
+        Assert.All(game.Players, player => Assert.NotNull(player.LeftAt));
+    }
+
+    [Fact]
+    public async Task LeavingStartedGameRemovesPlayerAndPreventsRejoin()
+    {
+        await database.ResetAsync();
+        var users = await SeedUsersAsync(2);
+        var hostClient = CreateClient(users[0]);
+        var guestClient = CreateClient(users[1]);
+        var created = await CreateGameAsync(hostClient);
+        using var joined = await guestClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/join",
+            content: null);
+
+        await using (var context = database.CreateDbContext())
+        {
+            var game = await context.Games.Include(savedGame => savedGame.Players).SingleAsync();
+            game.Status = GameStatus.InProgress;
+            foreach (var player in game.Players)
+            {
+                player.IsReady = true;
+            }
+
+            await context.SaveChangesAsync();
+        }
+
+        using var hostLeave = await hostClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/leave",
+            content: null);
+        using var guestSnapshotResponse = await guestClient.GetAsync(
+            $"/api/games/{created.Lobby.Code}");
+        using var formerHostRejoin = await hostClient.PostAsync(
+            $"/api/games/{created.Lobby.Code}/join",
+            content: null);
+
+        Assert.Equal(HttpStatusCode.NoContent, hostLeave.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, guestSnapshotResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, formerHostRejoin.StatusCode);
+        var guestSnapshot = await ReadSnapshotAsync(guestSnapshotResponse);
+        Assert.Equal(users[1].Id, guestSnapshot.Lobby.HostUserId);
+        Assert.Single(guestSnapshot.Lobby.Players);
+    }
+
+    [Fact]
     public async Task UnknownRoomReturnsNotFound()
     {
         await database.ResetAsync();

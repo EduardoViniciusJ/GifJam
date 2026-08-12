@@ -12,8 +12,8 @@ namespace GifJam.Api.Tests.Games;
 public sealed class GameRecoveryTests(PostgresFixture database)
 {
     [Theory]
-    [InlineData(RoundPhase.PhraseSubmission, RoundPhase.Results, 1)]
-    [InlineData(RoundPhase.PhraseVoting, RoundPhase.Results, 1)]
+    [InlineData(RoundPhase.PhraseSubmission, RoundPhase.PhraseSubmission, 2)]
+    [InlineData(RoundPhase.PhraseVoting, RoundPhase.PhraseSubmission, 2)]
     [InlineData(RoundPhase.GifSubmission, RoundPhase.Results, 1)]
     [InlineData(RoundPhase.GifVoting, RoundPhase.Results, 1)]
     [InlineData(RoundPhase.Results, RoundPhase.PhraseSubmission, 2)]

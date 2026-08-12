@@ -1,5 +1,6 @@
 import { Location } from '@angular/common';
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthService } from '@core/auth/auth.service';
@@ -17,6 +18,7 @@ export class RoomFacade {
   readonly realtime = inject(GameRealtimeService);
 
   private readonly location = inject(Location);
+  private readonly router = inject(Router);
   private readonly gameApi = inject(GameApiService);
   private readonly store = inject(GameStore);
 
@@ -26,6 +28,7 @@ export class RoomFacade {
   readonly errorMessage = signal('Não foi possível carregar a sala.');
   readonly actionMessage = signal('');
   readonly actionPending = signal(false);
+  readonly leavingRoom = signal(false);
   readonly copied = signal(false);
   readonly currentPlayer = computed(() => {
     const userId = this.auth.user()?.id;
@@ -112,6 +115,31 @@ export class RoomFacade {
     }
 
     await this.runCommand(() => this.realtime.startGame(code));
+  }
+
+  async leaveRoom(): Promise<void> {
+    const code = this.lobby()?.code;
+    if (!code || this.leavingRoom()) {
+      return;
+    }
+
+    this.leavingRoom.set(true);
+    this.actionMessage.set('');
+    try {
+      await firstValueFrom(this.gameApi.leave(code));
+      await this.realtime.stop();
+      await this.router.navigateByUrl('/');
+    } catch (error: unknown) {
+      if (error instanceof ApiProblemError && error.status === 404) {
+        await this.realtime.stop();
+        await this.router.navigateByUrl('/');
+        return;
+      }
+
+      this.actionMessage.set('NÃ£o foi possÃ­vel sair da sala. Tente novamente.');
+    } finally {
+      this.leavingRoom.set(false);
+    }
   }
 
   async copyInvite(): Promise<void> {

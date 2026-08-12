@@ -138,7 +138,8 @@ public sealed class GameLobbyService(
         var gameId = await FindGameIdAsync(normalizedCode, cancellationToken);
         await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken);
-        var existingPlayer = game.Players.SingleOrDefault(player => player.UserId == userId);
+        var savedPlayer = game.Players.SingleOrDefault(player => player.UserId == userId);
+        var existingPlayer = savedPlayer?.LeftAt is null ? savedPlayer : null;
 
         if (existingPlayer is not null)
         {
@@ -152,7 +153,7 @@ public sealed class GameLobbyService(
                 throw new ApiException("game_already_started", "New players cannot join after the game starts.", StatusCodes.Status409Conflict);
             }
 
-            if (game.Players.Count >= GameRules.MaximumPlayers)
+            if (game.Players.Count(player => player.LeftAt is null) >= GameRules.MaximumPlayers)
             {
                 throw new ApiException("game_full", "The game already has six players.", StatusCodes.Status409Conflict);
             }
@@ -163,14 +164,25 @@ public sealed class GameLobbyService(
             }
 
             var now = clock.UtcNow;
-            game.Players.Add(new()
+            if (savedPlayer is not null)
             {
-                GameId = game.Id,
-                UserId = userId,
-                JoinedAt = now,
-                LastSeenAt = now,
-                IsConnected = true
-            });
+                savedPlayer.IsConnected = true;
+                savedPlayer.IsReady = false;
+                savedPlayer.JoinedAt = now;
+                savedPlayer.LastSeenAt = now;
+                savedPlayer.LeftAt = null;
+            }
+            else
+            {
+                game.Players.Add(new()
+                {
+                    GameId = game.Id,
+                    UserId = userId,
+                    JoinedAt = now,
+                    LastSeenAt = now,
+                    IsConnected = true
+                });
+            }
         }
 
         game.Version++;
@@ -186,27 +198,25 @@ public sealed class GameLobbyService(
         var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
         await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
         var game = await LoadGameAsync(gameId, cancellationToken);
-        var player = game.Players.SingleOrDefault(savedPlayer => savedPlayer.UserId == userId)
-            ?? throw NotMember();
+        var player = EnsureMembership(game, userId);
+        var now = clock.UtcNow;
+        player.IsConnected = false;
+        player.LeftAt = now;
 
-        if (game.Status == GameStatus.Lobby && game.HostUserId == userId)
+        var remainingPlayers = game.Players
+            .Where(savedPlayer => savedPlayer.LeftAt is null)
+            .OrderBy(savedPlayer => savedPlayer.JoinedAt)
+            .ThenBy(savedPlayer => savedPlayer.UserId)
+            .ToArray();
+        if (remainingPlayers.Length == 0)
         {
             game.Status = GameStatus.Closed;
-            game.FinishedAt = clock.UtcNow;
-            foreach (var lobbyPlayer in game.Players)
-            {
-                lobbyPlayer.IsConnected = false;
-            }
+            game.FinishedAt = now;
         }
-        else if (game.Status == GameStatus.Lobby)
+        else if (game.HostUserId == userId)
         {
-            game.Players.Remove(player);
-            dbContext.GamePlayers.Remove(player);
-        }
-        else
-        {
-            player.IsConnected = false;
-            player.LastSeenAt = clock.UtcNow;
+            game.HostUserId = remainingPlayers[0].UserId;
+            remainingPlayers[0].IsReady = true;
         }
 
         game.Version++;
@@ -263,7 +273,8 @@ public sealed class GameLobbyService(
 
         await using var gameLock = await lockManager.AcquireAsync(gameId.Value, cancellationToken);
         var game = await LoadGameAsync(gameId.Value, cancellationToken);
-        var player = game.Players.SingleOrDefault(savedPlayer => savedPlayer.UserId == userId);
+        var player = game.Players.SingleOrDefault(savedPlayer =>
+            savedPlayer.UserId == userId && savedPlayer.LeftAt == null);
         if (player is null || !player.IsConnected)
         {
             return;
@@ -361,7 +372,8 @@ public sealed class GameLobbyService(
     }
 
     private static GamePlayer EnsureMembership(Game game, Guid userId) =>
-        game.Players.SingleOrDefault(player => player.UserId == userId) ?? throw NotMember();
+        game.Players.SingleOrDefault(player => player.UserId == userId && player.LeftAt == null)
+        ?? throw NotMember();
 
     private async Task<string> GenerateUniqueCodeAsync(CancellationToken cancellationToken)
     {
