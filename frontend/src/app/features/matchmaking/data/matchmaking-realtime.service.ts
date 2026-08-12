@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -6,7 +6,6 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 
-import { SessionTokenService } from '@core/auth/session-token.service';
 import { environment } from '@env/environment';
 
 import { MatchFoundSnapshot, MatchmakingSnapshot } from './matchmaking.models';
@@ -20,7 +19,6 @@ export interface MatchmakingRealtimeHandlers {
 
 @Injectable()
 export class MatchmakingRealtimeService {
-  private readonly session = inject(SessionTokenService);
   private connection: HubConnection | null = null;
 
   readonly state = signal<MatchmakingRealtimeState>('disconnected');
@@ -35,7 +33,7 @@ export class MatchmakingRealtimeService {
 
     const connection = new HubConnectionBuilder()
       .withUrl(environment.gameHubUrl, {
-        accessTokenFactory: () => this.session.get() ?? '',
+        withCredentials: true,
       })
       .withAutomaticReconnect([0, 1_000, 3_000, 5_000])
       .configureLogging(LogLevel.Warning)

@@ -12,7 +12,6 @@ describe('AuthCallbackPage', () => {
   const navigateByUrl = vi.fn().mockResolvedValue(true);
 
   beforeEach(async () => {
-    sessionStorage.clear();
     navigateByUrl.mockClear();
 
     await TestBed.configureTestingModule({
@@ -41,7 +40,6 @@ describe('AuthCallbackPage', () => {
     const request = http.expectOne('/api/auth/exchange');
     expect(request.request.body).toEqual({ code: 'one-time-code' });
     request.flush({
-      accessToken: 'jwt-token',
       expiresAt: '2026-08-10T20:00:00Z',
       user: {
         id: 'user-id',
@@ -49,12 +47,14 @@ describe('AuthCallbackPage', () => {
         username: 'edu',
         displayName: 'Edu',
         avatarUrl: null,
+        totalScore: 0,
+        rank: null,
       },
     });
 
     await fixture.whenStable();
 
-    expect(TestBed.inject(SessionTokenService).get()).toBe('jwt-token');
+    expect(TestBed.inject(SessionTokenService).user()?.username).toBe('edu');
     expect(navigateByUrl).toHaveBeenCalledWith('/sala/ABC12', { replaceUrl: true });
     http.verify();
   });

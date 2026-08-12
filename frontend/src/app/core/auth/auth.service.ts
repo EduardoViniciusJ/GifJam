@@ -19,14 +19,10 @@ export class AuthService {
   exchange(code: string): Observable<AuthExchangeResponse> {
     return this.http
       .post<AuthExchangeResponse>(apiUrl('/auth/exchange'), { code })
-      .pipe(tap((response) => this.session.set(response.accessToken, response.user)));
+      .pipe(tap((response) => this.session.setUser(response.user)));
   }
 
   restore(): Observable<SessionUser | null> {
-    if (!this.session.get()) {
-      return of(null);
-    }
-
     return this.http.get<SessionUser>(apiUrl('/auth/me')).pipe(
       tap((user) => this.session.setUser(user)),
       catchError((error: unknown) => {
@@ -46,7 +42,14 @@ export class AuthService {
   }
 
   logout(): void {
+    this.http.post<void>(apiUrl('/auth/logout'), {}).subscribe({ error: () => undefined });
     this.session.clear();
+  }
+
+  deleteAccount(confirmation: string): Observable<void> {
+    return this.http
+      .delete<void>(apiUrl('/auth/account'), { body: { confirmation } })
+      .pipe(tap(() => this.session.clear()));
   }
 }
 

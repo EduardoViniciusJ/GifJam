@@ -49,15 +49,18 @@ public sealed class AuthEndpointTests : IDisposable
         var auth = await exchange.Content.ReadFromJsonAsync<AuthResponse>();
         Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
         Assert.NotNull(auth);
-        Assert.False(string.IsNullOrWhiteSpace(auth.AccessToken));
         Assert.Equal("123456789012345678", auth.User.DiscordId);
+        var sessionCookie = exchange.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("__Host-gifjam-session=", StringComparison.Ordinal));
+        Assert.Contains("HttpOnly", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
+        client.DefaultRequestHeaders.Add("Cookie", sessionCookie.Split(';')[0]);
 
         using var reusedExchange = await client.PostAsJsonAsync(
             "/api/auth/exchange",
             new AuthExchangeRequest(exchangeCode));
         Assert.Equal(HttpStatusCode.BadRequest, reusedExchange.StatusCode);
 
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", auth.AccessToken);
         using var meResponse = await client.GetAsync("/api/auth/me");
         var me = await meResponse.Content.ReadFromJsonAsync<AuthUserResponse>();
         Assert.Equal(HttpStatusCode.OK, meResponse.StatusCode);

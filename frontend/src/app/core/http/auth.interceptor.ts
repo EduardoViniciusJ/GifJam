@@ -7,16 +7,22 @@ import { apiUrl } from './api-url';
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const session = inject(SessionTokenService);
-  const token = session.get();
   const isApiRequest = isGifJamApiRequest(request.url);
 
-  if (!token || !isApiRequest) {
+  if (!isApiRequest) {
     return next(request);
+  }
+
+  const headers: Record<string, string> = {};
+  const csrfToken = readCookie('gifjam-csrf');
+  if (csrfToken && isUnsafeMethod(request.method)) {
+    headers['X-CSRF-TOKEN'] = csrfToken;
   }
 
   return next(
     request.clone({
-      setHeaders: { Authorization: `Bearer ${token}` },
+      withCredentials: true,
+      setHeaders: headers,
     }),
   ).pipe(
     catchError((error: unknown) => {
@@ -28,6 +34,24 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
     }),
   );
 };
+
+function isUnsafeMethod(method: string): boolean {
+  return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase());
+}
+
+function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  const prefix = `${name}=`;
+  return (
+    document.cookie
+      .split('; ')
+      .find((cookie) => cookie.startsWith(prefix))
+      ?.slice(prefix.length) ?? null
+  );
+}
 
 function isGifJamApiRequest(requestUrl: string): boolean {
   const apiBase = new URL(apiUrl('/'), window.location.origin);

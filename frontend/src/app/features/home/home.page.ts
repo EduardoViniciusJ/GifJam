@@ -145,4 +145,8 @@ export class HomePage implements OnInit, OnDestroy {
     await this.matchmaking.destroy();
     this.auth.logout();
   }
+
+  openProfile(): void {
+    void this.router.navigate(['/perfil']);
+  }
 }

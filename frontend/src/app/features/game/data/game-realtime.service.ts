@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import {
   HubConnection,
   HubConnectionBuilder,
@@ -6,7 +6,6 @@ import {
   LogLevel,
 } from '@microsoft/signalr';
 
-import { SessionTokenService } from '@core/auth/session-token.service';
 import { environment } from '@env/environment';
 
 import {
@@ -29,7 +28,6 @@ export interface GameRealtimeHandlers {
 
 @Injectable()
 export class GameRealtimeService {
-  private readonly session = inject(SessionTokenService);
   private connection: HubConnection | null = null;
   private gameCode = '';
   private connectionOperation: Promise<void> | null = null;
@@ -60,7 +58,7 @@ export class GameRealtimeService {
     this.state.set('connecting');
 
     const connection = new HubConnectionBuilder()
-      .withUrl(environment.gameHubUrl, { accessTokenFactory: () => this.session.get() ?? '' })
+      .withUrl(environment.gameHubUrl, { withCredentials: true })
       .withAutomaticReconnect([0, 1_000, 3_000, 5_000])
       .configureLogging(LogLevel.Warning)
       .build();
