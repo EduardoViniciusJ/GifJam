@@ -28,6 +28,14 @@ export class AuthService {
       return this.restoreRequest;
     }
 
+    // The session is represented by the HttpOnly cookie. Once the bootstrap
+    // request has populated the in-memory user, avoid asking the API again on
+    // every guarded page or room action during the same SPA session.
+    const currentUser = this.session.user();
+    if (currentUser) {
+      return of(currentUser);
+    }
+
     const request = this.http.get<AuthStatusResponse>(apiUrl('/auth/me')).pipe(
       tap((response) => this.session.setSession(response.user, response.csrfToken)),
       map((response) => response.user),
