@@ -7,7 +7,9 @@ namespace GifJam.Api.Features.Auth;
 public static class AuthEndpoints
 {
     public const string RateLimitPolicy = "auth";
-    public const string SessionCookieName = "__Host-gifjam-session";
+    // The cookie intentionally has no __Host- prefix because local development
+    // runs the Angular app over http://localhost. Production still uses Secure.
+    public const string SessionCookieName = "gifjam-session";
     public const string CsrfCookieName = "gifjam-csrf";
 
     public static IEndpointRouteBuilder MapAuthEndpoints(this IEndpointRouteBuilder endpoints)
@@ -75,13 +77,7 @@ public static class AuthEndpoints
 
         group.MapPost("/logout", (HttpContext context) =>
             {
-                context.Response.Cookies.Delete(SessionCookieName, new CookieOptions
-                {
-                    Path = "/",
-                    Secure = true,
-                    HttpOnly = true,
-                    SameSite = SameSiteMode.Lax
-                });
+                DeleteSessionCookie(context);
                 return Results.NoContent();
             })
             .AllowAnonymous()
@@ -97,13 +93,7 @@ public static class AuthEndpoints
                     context.User.GetRequiredUserId(),
                     request.Confirmation,
                     cancellationToken);
-                context.Response.Cookies.Delete(SessionCookieName, new CookieOptions
-                {
-                    Path = "/",
-                    Secure = true,
-                    HttpOnly = true,
-                    SameSite = SameSiteMode.Lax
-                });
+                DeleteSessionCookie(context);
                 return Results.NoContent();
             })
             .RequireAuthorization()
@@ -136,10 +126,26 @@ public static class AuthEndpoints
         context.Response.Cookies.Append(SessionCookieName, session.AccessToken, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.Lax,
+            Secure = ShouldUseSecureCookies(context),
+            SameSite = ShouldUseSecureCookies(context) ? SameSiteMode.None : SameSiteMode.Lax,
             Path = "/",
             Expires = session.ExpiresAt
         });
     }
+
+    private static void DeleteSessionCookie(HttpContext context)
+    {
+        var secure = ShouldUseSecureCookies(context);
+        context.Response.Cookies.Delete(SessionCookieName, new CookieOptions
+        {
+            Path = "/",
+            Secure = secure,
+            HttpOnly = true,
+            SameSite = secure ? SameSiteMode.None : SameSiteMode.Lax
+        });
+    }
+
+    private static bool ShouldUseSecureCookies(HttpContext context) =>
+        !context.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
+        !context.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
 }

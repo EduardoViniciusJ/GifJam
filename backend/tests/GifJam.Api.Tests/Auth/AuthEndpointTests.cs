@@ -51,7 +51,7 @@ public sealed class AuthEndpointTests : IDisposable
         Assert.NotNull(auth);
         Assert.Equal("123456789012345678", auth.User.DiscordId);
         var sessionCookie = exchange.Headers.GetValues("Set-Cookie")
-            .Single(value => value.StartsWith("__Host-gifjam-session=", StringComparison.Ordinal));
+            .Single(value => value.StartsWith("gifjam-session=", StringComparison.Ordinal));
         Assert.Contains("HttpOnly", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
         client.DefaultRequestHeaders.Add("Cookie", sessionCookie.Split(';')[0]);

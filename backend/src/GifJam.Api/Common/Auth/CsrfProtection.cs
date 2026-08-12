@@ -20,8 +20,8 @@ public static class CsrfProtection
                     new CookieOptions
                     {
                         HttpOnly = false,
-                        Secure = true,
-                        SameSite = SameSiteMode.Lax,
+                        Secure = ShouldUseSecureCookies(context),
+                        SameSite = ShouldUseSecureCookies(context) ? SameSiteMode.None : SameSiteMode.Lax,
                         Path = "/",
                         IsEssential = true
                     });
@@ -50,4 +50,8 @@ public static class CsrfProtection
     private static bool IsUnsafe(string method) =>
         HttpMethods.IsPost(method) || HttpMethods.IsPut(method) ||
         HttpMethods.IsPatch(method) || HttpMethods.IsDelete(method);
+
+    private static bool ShouldUseSecureCookies(HttpContext context) =>
+        !context.Request.Host.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
+        !context.Request.Host.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase);
 }
