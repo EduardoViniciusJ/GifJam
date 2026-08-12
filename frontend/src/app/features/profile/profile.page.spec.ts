@@ -28,22 +28,30 @@ describe('ProfilePage', () => {
     );
   });
 
-  it('accepts a case-insensitive confirmation and returns home after deletion', () => {
+  it('sends the deletion request and returns home when the dialog is confirmed', () => {
     const fixture = TestBed.createComponent(ProfilePage);
     const auth = TestBed.inject(AuthService);
     const router = TestBed.inject(Router);
     const deleteAccount = vi.spyOn(auth, 'deleteAccount').mockReturnValue(of(void 0));
     const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-    fixture.componentInstance.showDelete.set(true);
-    fixture.componentInstance.confirmation.setValue('excluir');
-    fixture.detectChanges();
-
-    expect(fixture.componentInstance.confirmation.valid).toBe(true);
-
+    fixture.componentInstance.openDeleteDialog();
     fixture.componentInstance.deleteAccount();
 
-    expect(deleteAccount).toHaveBeenCalledWith('excluir');
+    expect(fixture.componentInstance.showDelete()).toBe(true);
+    expect(deleteAccount).toHaveBeenCalledWith('EXCLUIR');
     expect(navigate).toHaveBeenCalledWith('/');
+  });
+
+  it('closes the dialog without making a request when cancelled', () => {
+    const fixture = TestBed.createComponent(ProfilePage);
+    const auth = TestBed.inject(AuthService);
+    const deleteAccount = vi.spyOn(auth, 'deleteAccount');
+
+    fixture.componentInstance.openDeleteDialog();
+    fixture.componentInstance.closeDeleteDialog();
+
+    expect(fixture.componentInstance.showDelete()).toBe(false);
+    expect(deleteAccount).not.toHaveBeenCalled();
   });
 });

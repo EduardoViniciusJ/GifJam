@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
@@ -17,7 +16,7 @@ import { BrandComponent } from '@shared/ui/brand/brand.component';
 
 @Component({
   selector: 'app-profile-page',
-  imports: [BrandComponent, NgIcon, ReactiveFormsModule, RouterLink],
+  imports: [BrandComponent, NgIcon, RouterLink],
   providers: [
     provideIcons({ lucideArrowLeft, lucideLogOut, lucideShieldCheck, lucideTrash2, lucideTrophy }),
   ],
@@ -108,23 +107,41 @@ import { BrandComponent } from '@shared/ui/brand/brand.component';
         background: #b42318;
         color: #fff;
       }
-      .profile-delete-form {
+      .profile-delete-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
         display: grid;
-        gap: 10px;
+        place-items: center;
+        padding: 24px;
+        background: rgb(16 24 40 / 52%);
       }
-      .profile-delete-form input {
-        min-height: 44px;
-        border: 1px solid #d0d5dd;
-        border-radius: 10px;
-        padding: 0 12px;
+      .profile-delete-dialog {
+        width: min(100%, 440px);
+        display: grid;
+        gap: 16px;
+        border: 1px solid #fecaca;
+        border-radius: 20px;
+        background: #fff;
+        padding: 28px;
+        box-shadow: 0 24px 64px rgb(16 24 40 / 28%);
       }
-      .profile-delete-form__actions,
+      .profile-delete-dialog h3,
+      .profile-delete-dialog p {
+        margin: 0;
+      }
+      .profile-delete-dialog p {
+        color: #667085;
+      }
+      .profile-delete-dialog__actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
       .profile-actions {
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
-      }
-      .profile-actions {
         margin-top: 20px;
         justify-content: flex-end;
       }
@@ -196,34 +213,45 @@ import { BrandComponent } from '@shared/ui/brand/brand.component';
               </p>
             </div>
             @if (!deleting()) {
-              <button class="button button--danger" type="button" (click)="showDelete.set(true)">
+              <button class="button button--danger" type="button" (click)="openDeleteDialog()">
                 <ng-icon name="lucideTrash2" aria-hidden="true" /> Excluir conta
               </button>
             }
             @if (showDelete()) {
-              <form class="profile-delete-form" (ngSubmit)="deleteAccount()">
-                <label for="delete-confirmation">Digite EXCLUIR para confirmar</label>
-                <input id="delete-confirmation" [formControl]="confirmation" autocomplete="off" />
-                @if (errorMessage()) {
-                  <span class="field-error">{{ errorMessage() }}</span>
-                }
-                <div class="profile-delete-form__actions">
-                  <button
-                    class="button button--outline"
-                    type="button"
-                    (click)="showDelete.set(false)"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    class="button button--danger"
-                    type="submit"
-                    [disabled]="confirmation.invalid || deleting()"
-                  >
-                    {{ deleting() ? 'Excluindo…' : 'Confirmar exclusão' }}
-                  </button>
-                </div>
-              </form>
+              <div class="profile-delete-backdrop">
+                <section
+                  class="profile-delete-dialog"
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="delete-dialog-title"
+                >
+                  <h3 id="delete-dialog-title">Excluir conta?</h3>
+                  <p>
+                    Seu perfil, pontuação e histórico associado serão removidos permanentemente.
+                  </p>
+                  @if (errorMessage()) {
+                    <span class="field-error">{{ errorMessage() }}</span>
+                  }
+                  <div class="profile-delete-dialog__actions">
+                    <button
+                      class="button button--outline"
+                      type="button"
+                      [disabled]="deleting()"
+                      (click)="closeDeleteDialog()"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      class="button button--danger"
+                      type="button"
+                      [disabled]="deleting()"
+                      (click)="deleteAccount()"
+                    >
+                      {{ deleting() ? 'Excluindo…' : 'Confirmar exclusão' }}
+                    </button>
+                  </div>
+                </section>
+              </div>
             }
           </section>
 
@@ -251,10 +279,6 @@ export class ProfilePage implements OnInit {
   readonly showDelete = signal(false);
   readonly deleting = signal(false);
   readonly errorMessage = signal('');
-  readonly confirmation = new FormControl('', {
-    nonNullable: true,
-    validators: [Validators.required, Validators.pattern(/^\s*EXCLUIR\s*$/i)],
-  });
 
   ngOnInit(): void {
     this.auth
@@ -270,12 +294,20 @@ export class ProfilePage implements OnInit {
     void this.router.navigateByUrl('/');
   }
 
+  openDeleteDialog(): void {
+    this.errorMessage.set('');
+    this.showDelete.set(true);
+  }
+
+  closeDeleteDialog(): void {
+    if (!this.deleting()) this.showDelete.set(false);
+  }
+
   deleteAccount(): void {
-    this.confirmation.markAsTouched();
-    if (this.confirmation.invalid || this.deleting()) return;
+    if (this.deleting()) return;
     this.deleting.set(true);
     this.errorMessage.set('');
-    this.auth.deleteAccount(this.confirmation.value).subscribe({
+    this.auth.deleteAccount('EXCLUIR').subscribe({
       next: () => void this.router.navigateByUrl('/'),
       error: (error: unknown) => {
         this.deleting.set(false);
