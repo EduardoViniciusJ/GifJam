@@ -253,7 +253,7 @@ export class ProfilePage implements OnInit {
   readonly errorMessage = signal('');
   readonly confirmation = new FormControl('', {
     nonNullable: true,
-    validators: [Validators.required, Validators.pattern(/^EXCLUIR$/)],
+    validators: [Validators.required, Validators.pattern(/^\s*EXCLUIR\s*$/i)],
   });
 
   ngOnInit(): void {
