@@ -52,6 +52,25 @@ public sealed class AiPhraseGenerationServiceTests
             phrase.Contains("Eduardo", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task SimilarProviderPhrasesUseDiverseFallbacks()
+    {
+        var service = new AiPhraseGenerationService(
+            new SimilarProvider(),
+            new PredictableRandomizer(),
+            NullLogger<AiPhraseGenerationService>.Instance);
+
+        var phrases = await service.GenerateAsync(
+            ["Mitch", "Ferreiro", "Bia", "Eduardo"],
+            2,
+            CancellationToken.None);
+
+        Assert.Equal(4, phrases.Count);
+        Assert.Equal(4, phrases.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.Contains(phrases, phrase => phrase.Contains("contou aquela historia", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(phrases, phrase => phrase.Contains("desta vez o plano", StringComparison.OrdinalIgnoreCase));
+    }
+
     private sealed class RecordingProvider : IAiPhraseProvider
     {
         public AiPhraseGenerationRequest? LastRequest { get; private set; }
@@ -78,6 +97,23 @@ public sealed class AiPhraseGenerationServiceTests
             AiPhraseGenerationRequest request,
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<GeneratedAiPhrase>>([]);
+    }
+
+    private sealed class SimilarProvider : IAiPhraseProvider
+    {
+        public Task<IReadOnlyList<GeneratedAiPhrase>> GenerateAsync(
+            AiPhraseGenerationRequest request,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<GeneratedAiPhrase> phrases = request.Slots
+                .Select(slot => new GeneratedAiPhrase(
+                    slot.Id,
+                    slot.RequiredPlayerNames.Count == 2
+                        ? $"Quando {slot.RequiredPlayerNames[0]} encontra {slot.RequiredPlayerNames[1]} na rua."
+                        : "Quando o plano parecia perfeito ate a hora de executar."))
+                .ToArray();
+            return Task.FromResult(phrases);
+        }
     }
 
     private sealed class PredictableRandomizer : IRandomizer

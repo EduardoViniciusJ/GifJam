@@ -6,9 +6,14 @@ import { firstValueFrom } from 'rxjs';
 import { AuthService } from '@core/auth/auth.service';
 import { ApiProblemError } from '@core/models/problem-details.model';
 import { GameApiService } from '@features/game/data/game-api.service';
-import { CommandRejectedMessage, GameMode } from '@features/game/data/game.models';
+import {
+  CommandRejectedMessage,
+  GameMode,
+  GlobalRankingSnapshot,
+} from '@features/game/data/game.models';
 import { GameRealtimeService } from '@features/game/data/game-realtime.service';
 import { GameStore } from '@features/game/state/game.store';
+import { RankingApiService } from '@features/ranking/data/ranking-api.service';
 
 export type RoomPageStatus = 'loading' | 'ready' | 'error';
 
@@ -20,6 +25,7 @@ export class RoomFacade {
   private readonly location = inject(Location);
   private readonly router = inject(Router);
   private readonly gameApi = inject(GameApiService);
+  private readonly rankingApi = inject(RankingApiService);
   private readonly store = inject(GameStore);
 
   readonly lobby = this.store.lobby;
@@ -30,6 +36,8 @@ export class RoomFacade {
   readonly actionPending = signal(false);
   readonly leavingRoom = signal(false);
   readonly copied = signal(false);
+  readonly globalRanking = signal<GlobalRankingSnapshot | null>(null);
+  readonly globalRankingStatus = signal<'loading' | 'ready' | 'error'>('loading');
   readonly currentPlayer = computed(() => {
     const userId = this.auth.user()?.id;
     return this.lobby()?.players.find((player) => player.userId === userId) ?? null;
@@ -49,6 +57,7 @@ export class RoomFacade {
 
   private initializePromise: Promise<void> | null = null;
   private copiedTimer: ReturnType<typeof setTimeout> | null = null;
+  private actionMessageTimer: ReturnType<typeof setTimeout> | null = null;
 
   initialize(requestedCode: string): Promise<void> {
     if (!this.isValidRoomCode(requestedCode)) {
@@ -124,7 +133,7 @@ export class RoomFacade {
     }
 
     this.leavingRoom.set(true);
-    this.actionMessage.set('');
+    this.dismissActionMessage();
     try {
       await firstValueFrom(this.gameApi.leave(code));
       await this.realtime.stop();
@@ -136,7 +145,7 @@ export class RoomFacade {
         return;
       }
 
-      this.actionMessage.set('NÃ£o foi possÃ­vel sair da sala. Tente novamente.');
+      this.showActionMessage('Não foi possível sair da sala. Tente novamente.');
     } finally {
       this.leavingRoom.set(false);
     }
@@ -161,7 +170,7 @@ export class RoomFacade {
       }
       this.copiedTimer = setTimeout(() => this.copied.set(false), 2_000);
     } catch {
-      this.actionMessage.set('Não foi possível copiar o link. Compartilhe o código da sala.');
+      this.showActionMessage('Não foi possível copiar o link. Compartilhe o código da sala.');
     }
   }
 
@@ -171,7 +180,21 @@ export class RoomFacade {
       this.copiedTimer = null;
     }
 
+    if (this.actionMessageTimer) {
+      clearTimeout(this.actionMessageTimer);
+      this.actionMessageTimer = null;
+    }
+
     await this.realtime.stop();
+  }
+
+  dismissActionMessage(): void {
+    if (this.actionMessageTimer) {
+      clearTimeout(this.actionMessageTimer);
+      this.actionMessageTimer = null;
+    }
+
+    this.actionMessage.set('');
   }
 
   private async loadRoom(requestedCode: string): Promise<void> {
@@ -181,6 +204,8 @@ export class RoomFacade {
         this.auth.startDiscordLogin(`/sala/${requestedCode.toLowerCase()}`);
         return;
       }
+
+      void this.loadGlobalRanking();
 
       this.loadingMessage.set(
         requestedCode === 'NOVA' ? 'Criando uma nova sala.' : 'Entrando na sala.',
@@ -220,20 +245,36 @@ export class RoomFacade {
     }
 
     this.actionPending.set(true);
-    this.actionMessage.set('');
+    this.dismissActionMessage();
     try {
       await command();
     } catch {
-      this.actionMessage.set('A ação não foi enviada. A conexão será sincronizada novamente.');
+      this.showActionMessage('A ação não foi enviada. A conexão será sincronizada novamente.');
       await this.syncCurrentGame();
     } finally {
       this.actionPending.set(false);
     }
   }
 
+  private async loadGlobalRanking(): Promise<void> {
+    this.globalRankingStatus.set('loading');
+    try {
+      this.globalRanking.set(await firstValueFrom(this.rankingApi.getGlobal()));
+      this.globalRankingStatus.set('ready');
+    } catch {
+      this.globalRanking.set(null);
+      this.globalRankingStatus.set('error');
+    }
+  }
+
   private handleCommandRejected(rejection: CommandRejectedMessage): void {
-    this.actionMessage.set(commandErrorMessage(rejection.code));
-    void this.syncCurrentGame();
+    this.showActionMessage(commandErrorMessage(rejection.code, rejection.message));
+
+    // RequestSync is itself rate limited. Retrying it after a rate-limit
+    // rejection would create a rejection/sync loop in the client.
+    if (rejection.code !== 'rate_limited') {
+      void this.syncCurrentGame();
+    }
   }
 
   private async syncCurrentGame(): Promise<void> {
@@ -251,8 +292,20 @@ export class RoomFacade {
     try {
       await this.realtime.requestSync(code);
     } catch {
-      this.actionMessage.set('O jogo será sincronizado quando a conexão voltar.');
+      this.showActionMessage('O jogo será sincronizado quando a conexão voltar.');
     }
+  }
+
+  private showActionMessage(message: string): void {
+    if (this.actionMessageTimer) {
+      clearTimeout(this.actionMessageTimer);
+    }
+
+    this.actionMessage.set(message);
+    this.actionMessageTimer = setTimeout(() => {
+      this.actionMessage.set('');
+      this.actionMessageTimer = null;
+    }, 6_000);
   }
 
   private handleLoadError(error: unknown, requestedCode: string): void {
@@ -293,7 +346,7 @@ function gameErrorMessage(code?: string): string {
   }
 }
 
-function commandErrorMessage(code: string): string {
+function commandErrorMessage(code: string, serverMessage: string): string {
   switch (code) {
     case 'rate_limited':
       return 'Você está fazendo ações rápido demais. Tente novamente em instantes.';
@@ -305,6 +358,8 @@ function commandErrorMessage(code: string): string {
     case 'phase_expired':
       return 'Essa etapa terminou. O estado da sala foi atualizado.';
     default:
-      return 'A ação foi recusada. O estado da sala foi atualizado.';
+      return (
+        serverMessage || 'Essa ação não está disponível agora. O estado da sala foi atualizado.'
+      );
   }
 }

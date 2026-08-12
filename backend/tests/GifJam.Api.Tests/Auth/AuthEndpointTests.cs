@@ -5,6 +5,7 @@ using GifJam.Api.Common.Errors;
 using GifJam.Api.Data;
 using GifJam.Api.Domain.Entities;
 using GifJam.Api.Features.Auth;
+using GifJam.Api.Features.Games;
 using GifJam.Api.Integrations.Discord;
 using GifJam.Api.Tests.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -181,6 +182,79 @@ public sealed class AuthEndpointTests : IDisposable
         await using var context = database.CreateDbContext();
         var user = await context.Users.SingleAsync();
         Assert.Equal("user-updated-name", user.Username);
+    }
+
+    [Fact]
+    public async Task DeleteAccountRemovesTheUserFromTheRankingAndInvalidatesTheSession()
+    {
+        await database.ResetAsync();
+        var state = await StartAndReadStateAsync("/");
+
+        using var callback = await client.GetAsync(
+            $"/api/auth/discord/callback?code=delete-account&state={Uri.EscapeDataString(state)}");
+        var exchangeCode = Assert.Single(QueryHelpers.ParseQuery(callback.Headers.Location!.Query)["code"])
+            ?? throw new InvalidOperationException("Exchange code was missing.");
+
+        using var exchange = await client.PostAsJsonAsync("/api/auth/exchange", new AuthExchangeRequest(exchangeCode));
+        var auth = await exchange.Content.ReadFromJsonAsync<AuthResponse>();
+        Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
+        Assert.NotNull(auth);
+
+        var sessionCookie = exchange.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("gifjam-session=", StringComparison.Ordinal))
+            .Split(';')[0];
+        var csrfCookie = exchange.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("gifjam-csrf=", StringComparison.Ordinal))
+            .Split(';')[0];
+        client.DefaultRequestHeaders.Add("Cookie", $"{sessionCookie}; {csrfCookie}");
+        client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", auth.CsrfToken);
+
+        var remainingUser = new User
+        {
+            DiscordId = "ranking-survivor",
+            Username = "survivor",
+            DisplayName = "Ranking Survivor",
+            TotalScore = 5,
+            CreatedAt = factory.Clock.UtcNow,
+            UpdatedAt = factory.Clock.UtcNow
+        };
+        await using (var context = database.CreateDbContext())
+        {
+            var account = await context.Users.SingleAsync(user => user.Id == auth.User.Id);
+            account.TotalScore = 10;
+            context.Users.Add(remainingUser);
+            await context.SaveChangesAsync();
+        }
+
+        using var deletion = await client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, "/api/auth/account")
+        {
+            Content = JsonContent.Create(new DeleteAccountRequest("EXCLUIR"))
+        });
+
+        Assert.Equal(HttpStatusCode.NoContent, deletion.StatusCode);
+        var clearedSessionCookie = deletion.Headers.GetValues("Set-Cookie")
+            .Single(value => value.StartsWith("gifjam-session=", StringComparison.Ordinal));
+        Assert.Contains("expires=", clearedSessionCookie, StringComparison.OrdinalIgnoreCase);
+
+        await using (var context = database.CreateDbContext())
+        {
+            Assert.False(await context.Users.AnyAsync(user => user.Id == auth.User.Id));
+        }
+
+        using var rankingClient = factory.CreateClient(new() { BaseAddress = new("https://api.test") });
+        rankingClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            factory.CreateAccessToken(remainingUser));
+        using var rankingResponse = await rankingClient.GetAsync("/api/ranking");
+        var ranking = await rankingResponse.Content.ReadFromJsonAsync<GlobalRankingSnapshot>();
+
+        Assert.Equal(HttpStatusCode.OK, rankingResponse.StatusCode);
+        Assert.NotNull(ranking);
+        Assert.DoesNotContain(ranking.Entries, entry => entry.UserId == auth.User.Id);
+        Assert.Contains(ranking.Entries, entry => entry.UserId == remainingUser.Id);
+
+        using var sessionCheck = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, sessionCheck.StatusCode);
     }
 
     public void Dispose()

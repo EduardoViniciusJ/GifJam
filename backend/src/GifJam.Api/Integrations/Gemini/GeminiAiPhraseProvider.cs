@@ -84,6 +84,11 @@ public sealed class GeminiAiPhraseProvider(
                         new
                         {
                             text = "Gere exatamente uma frase para cada slot deste JSON. " +
+                                "Escreva em portugues do Brasil, com humor leve e natural. " +
+                                "As frases precisam ser realmente diferentes entre si: alterne os cenarios " +
+                                "(por exemplo, trabalho, tecnologia, comida, familia, transporte, festa e vida social), " +
+                                "nao repita a mesma abertura, verbo principal, estrutura, situacao ou punchline e " +
+                                "nao comece todas com 'Quando'. Nao basta trocar os nomes para criar uma frase nova. " +
                                 "Slots sem nomes devem ser situacoes gerais e nao devem citar jogadores: " + input
                         }
                     }
@@ -122,7 +127,7 @@ public sealed class GeminiAiPhraseProvider(
                 {
                     thinkingLevel = "minimal"
                 },
-                temperature = 1.1,
+                temperature = 1.3,
                 maxOutputTokens = 2048
             }
         };

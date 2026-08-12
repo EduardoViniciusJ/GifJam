@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-const DEFAULT_VOLUME = 0.2;
+const DEFAULT_VOLUME = 0.5;
 const STORAGE_KEY = 'gifjam.music.settings';
 
 const MUSIC_TRACKS = [

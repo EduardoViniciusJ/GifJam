@@ -3,6 +3,7 @@ import { interval } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 import { ApiProblemError } from '@core/models/problem-details.model';
+import { SoundEffectsService } from '@core/audio/sound-effects.service';
 import { GifApiService } from '@features/game/data/gif-api.service';
 import { GameRealtimeService } from '@features/game/data/game-realtime.service';
 import {
@@ -19,13 +20,19 @@ export class GameFacade {
   private readonly realtime = inject(GameRealtimeService);
   private readonly gifApi = inject(GifApiService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly soundEffects = inject(SoundEffectsService);
 
   private readonly gameCodeState = signal('');
   private readonly now = signal(Date.now());
   private readonly serverClockOffset = signal(0);
-  private readonly lastSearchQuery = signal('reações');
+  private readonly lastSearchQuery = signal('hello');
   private lastSuggestedRound = 0;
   private lastVotingRound = 0;
+  private lastWinnerRevealRound = 0;
+  private countdownKey = '';
+  private expirationSyncKey = '';
+  private expirationSyncStartedAt = 0;
+  private expirationSyncOperation: Promise<void> | null = null;
 
   readonly round = this.store.round;
   readonly totalRounds = computed(() => this.store.lobby()?.totalRounds ?? 0);
@@ -37,7 +44,17 @@ export class GameFacade {
   readonly selectedPhraseId = signal<string | null>(null);
   readonly selectedGifId = signal<string | null>(null);
   readonly gifQuery = signal('');
-  readonly gifSuggestions = ['reações', 'risada', 'surpresa', 'não acredito', 'comemoração'];
+  readonly gifCategories: GifCategory[] = [
+    { label: 'Hello', query: 'hello' },
+    { label: 'LOL', query: 'lol' },
+    { label: 'Love', query: 'love' },
+    { label: 'Happy Birthday', query: 'happy birthday' },
+    { label: 'Thank You', query: 'thank you' },
+    { label: 'Excited', query: 'excited' },
+    { label: 'Yes', query: 'yes' },
+    { label: 'No', query: 'no' },
+    { label: 'Sorry', query: 'sorry' },
+  ];
   readonly gifResults = signal<GifSearchItem[]>([]);
   readonly gifResultsCount = computed(() => this.gifResults().length);
   readonly nextCursor = signal<string | null>(null);
@@ -114,7 +131,7 @@ export class GameFacade {
       this.gifQuery.set('');
       this.gifResults.set([]);
       this.selectedGif.set(null);
-      this.fetchGifs('reações', null, false);
+      this.fetchGifs('hello', null, false);
     }
 
     if (round?.phase === 'GifVoting' && this.lastVotingRound !== round.roundNumber) {
@@ -123,10 +140,48 @@ export class GameFacade {
     }
   });
 
+  private readonly soundEffectsExperience = effect(() => {
+    const round = this.round();
+    const remainingSeconds = this.remainingSeconds();
+    const isPresentingGifs = this.gifPresentationActive();
+
+    if (!round) {
+      this.stopCountdown();
+      return;
+    }
+
+    if (
+      (round.phase === 'Results' || round.phase === 'Completed') &&
+      this.lastWinnerRevealRound !== round.roundNumber
+    ) {
+      this.lastWinnerRevealRound = round.roundNumber;
+      this.soundEffects.playWinnerReveal();
+    }
+
+    const countdownIsRelevant =
+      (round.phase === 'GifSubmission' || round.phase === 'GifVoting') &&
+      !isPresentingGifs &&
+      remainingSeconds > 0 &&
+      remainingSeconds <= 10;
+    if (countdownIsRelevant) {
+      const key = `${round.roundNumber}:${round.phase}`;
+      if (this.countdownKey !== key) {
+        this.countdownKey = key;
+        this.soundEffects.playCountdown();
+      }
+    } else {
+      this.stopCountdown();
+    }
+  });
+
   constructor() {
+    this.destroyRef.onDestroy(() => this.soundEffects.stopCountdown());
     interval(1_000)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.now.set(Date.now()));
+      .subscribe(() => {
+        this.now.set(Date.now());
+        void this.syncExpiredPhase();
+      });
   }
 
   setGameCode(gameCode: string): void {
@@ -353,4 +408,52 @@ export class GameFacade {
       this.pending.set(false);
     }
   }
+
+  private async syncExpiredPhase(): Promise<void> {
+    const round = this.round();
+    const gameCode = this.gameCodeState();
+    if (
+      !round ||
+      round.phase === 'Completed' ||
+      !gameCode ||
+      this.remainingSeconds() > 0 ||
+      this.expirationSyncOperation
+    ) {
+      return;
+    }
+
+    const key = `${round.roundNumber}:${round.phase}`;
+    const now = Date.now();
+    if (this.expirationSyncKey === key && now - this.expirationSyncStartedAt < 3_000) {
+      return;
+    }
+
+    this.expirationSyncKey = key;
+    this.expirationSyncStartedAt = now;
+    const operation = this.realtime.requestSync(gameCode);
+    this.expirationSyncOperation = operation;
+    try {
+      await operation;
+    } catch {
+      // Keep retrying while the server still reports the expired phase.
+    } finally {
+      if (this.expirationSyncOperation === operation) {
+        this.expirationSyncOperation = null;
+      }
+    }
+  }
+
+  private stopCountdown(): void {
+    if (!this.countdownKey) {
+      return;
+    }
+
+    this.countdownKey = '';
+    this.soundEffects.stopCountdown();
+  }
+}
+
+export interface GifCategory {
+  label: string;
+  query: string;
 }
