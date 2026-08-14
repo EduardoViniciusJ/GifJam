@@ -1,76 +1,79 @@
 # GifJam
 
-GifJam é um jogo multiplayer em que os jogadores criam frases, escolhem GIFs e votam nas melhores combinações. As partidas acontecem em salas privadas, com autenticação pelo Discord e atualizações em tempo real.
+GifJam is a multiplayer game. Players create phrases, choose GIFs, and vote for the best combination. Games happen in private rooms, with Discord login and real-time updates.
 
-## Principais recursos
+## Features
 
-- Login com Discord OAuth2.
-- Criação e entrada em salas privadas.
-- Partidas de 2 a 6 jogadores.
-- Fluxo de rodadas com frases, escolha de GIFs, votação e ranking.
-- Busca de GIFs usando KLIPY e GIPHY.
-- Paginação para carregar mais resultados sem exibir todo o catálogo de uma vez.
-- Comunicação em tempo real com SignalR.
-- Reconexão e recuperação do estado da partida.
+- Sign in with Discord OAuth2.
+- Create or join private rooms.
+- Play with 2 to 6 players.
+- Use quick matchmaking to find a game.
+- Create phrases manually or use AI-generated random phrases.
+- Choose GIFs, vote, and see the ranking after each round.
+- Search GIFs with KLIPY and GIPHY, with pagination for more results.
+- Receive real-time game updates with SignalR.
+- Reconnect and recover the current game state.
+- View the global ranking, manage your profile, and delete your account.
+- Hear music and sound effects during the game.
 
-## Tecnologias
+## Tech stack
 
-- Backend: ASP.NET Core 10, Entity Framework Core, PostgreSQL e SignalR.
-- Frontend: Angular 22, TypeScript, Tailwind CSS e Vitest.
-- Autenticação: Discord OAuth2 e JWT.
-- GIFs: KLIPY e GIPHY.
+- Backend: ASP.NET Core 10, Entity Framework Core, PostgreSQL, and SignalR.
+- Frontend: Angular 22, TypeScript, Tailwind CSS, and Vitest.
+- Authentication: Discord OAuth2 and JWT.
+- GIF providers: KLIPY and GIPHY.
 
-## Estrutura
+## Project structure
 
 ```text
-backend/    API, regras de negócio, persistência, SignalR e integrações externas
-frontend/   Aplicação Angular e interface do jogo
-design/     Referências e materiais visuais do produto
+backend/    API, business rules, database, SignalR, scripts, and external integrations
+frontend/   Angular app and game interface
+design/     Product design references and visual assets
 ```
 
-## Requisitos
+## Requirements
 
-- .NET SDK 10.0.302 ou compatível.
-- Node.js 24.15.0 ou compatível com Angular 22.
-- npm 11 ou superior.
-- Docker Desktop, para executar o PostgreSQL localmente.
+- .NET SDK 10.0.302 or compatible.
+- Node.js 22.22.3+ or 24.15.0+.
+- npm 11 or newer.
+- Docker Desktop, to run PostgreSQL locally.
 
-## Configuração local
+## Local setup
 
-1. Clone o repositório e entre na pasta do projeto.
+1. Clone the repository and open the project folder.
 
-2. Crie o arquivo de ambiente do backend:
+2. Create the backend environment file:
 
    ```powershell
    Copy-Item backend/.env.example backend/.env
    ```
 
-3. Preencha `backend/.env` com as credenciais de desenvolvimento do Discord, KLIPY, GIPHY, Gemini e JWT. Esse arquivo é ignorado pelo Git e não deve ser commitado.
+3. Fill in `backend/.env` with development credentials for Discord, KLIPY, GIPHY, Gemini, and JWT. Git ignores this file, so never commit it.
 
-4. Inicie o PostgreSQL:
+4. Start PostgreSQL:
 
    ```powershell
    cd backend
    docker compose up -d postgres
    ```
 
-5. Aplique as migrations do banco:
+5. Apply database migrations:
 
    ```powershell
    ./scripts/Update-Database.ps1
    ```
 
-## Executando o projeto
+## Run the app
 
-Em um terminal, inicie a API:
+Start the API in one terminal:
 
 ```powershell
 ./backend/scripts/Start-Api.ps1
 ```
 
-A API ficará disponível em `https://localhost:7042`.
+The API runs at `https://localhost:7042`.
 
-Em outro terminal, instale as dependências e inicie o frontend:
+In another terminal, install frontend dependencies and start the app:
 
 ```powershell
 cd frontend
@@ -78,29 +81,38 @@ npm ci
 npm start
 ```
 
-A aplicação ficará disponível em `http://localhost:4200`. O proxy do Angular encaminha as chamadas REST e SignalR para a API local.
+The app runs at `http://localhost:4200`. The Angular proxy sends REST and SignalR requests to the local API.
 
-## Verificações
+## Checks
 
-Para executar as verificações do frontend:
+Run frontend checks:
 
 ```powershell
 cd frontend
 npm run check
 ```
 
-Para executar os testes do backend:
+Run backend tests:
 
 ```powershell
 cd backend
 dotnet test
 ```
 
-Os testes de integração que usam PostgreSQL precisam do Docker em execução.
+Integration tests that use PostgreSQL need Docker running.
 
-## Segurança
+## Deployment
 
-- Nunca coloque chaves de API, segredos OAuth, senhas ou strings de conexão em arquivos versionados.
-- As credenciais de KLIPY e GIPHY são usadas somente pelo backend.
-- Use `backend/.env.example` como referência para configurar um ambiente local.
-- Para produção, configure os segredos diretamente no provedor de hospedagem e revise as URLs de CORS e OAuth.
+- The frontend is prepared for Vercel.
+- The API is prepared for a Docker deployment on a Linux VPS.
+- PostgreSQL can run on Neon in production.
+- The full deployment checklist is in [backend/contracts/deployment.md](backend/contracts/deployment.md).
+
+Keep `.github`, `backend/contracts`, `backend/openapi`, and `backend/scripts` in Git. They contain CI, deployment, API contract, and operational files.
+
+## Security
+
+- Never commit API keys, OAuth secrets, passwords, or connection strings.
+- KLIPY and GIPHY credentials are used only by the backend.
+- Use `backend/.env.example` as the local configuration reference.
+- In production, configure secrets in the hosting provider and review CORS and OAuth URLs.

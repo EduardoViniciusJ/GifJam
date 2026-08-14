@@ -69,6 +69,9 @@ docs/
 # Local tool/cache folder used in this workspace
 /.dotnet/
 
+# Local QA build output
+**/.qa-bin/
+
 # Local generated images and temporary files
 /tmp/
 
