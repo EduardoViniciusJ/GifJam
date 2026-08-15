@@ -14,6 +14,7 @@ import {
   LobbySnapshot,
   PlayerGameSnapshot,
   PresenceSnapshot,
+  RoomVisibility,
 } from './game.models';
 
 export type RealtimeState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
@@ -123,6 +124,10 @@ export class GameRealtimeService {
 
   setReady(gameCode: string, isReady: boolean): Promise<void> {
     return this.invoke('SetReady', gameCode, isReady);
+  }
+
+  setRoomVisibility(gameCode: string, visibility: RoomVisibility): Promise<void> {
+    return this.invoke('SetRoomVisibility', gameCode, visibility);
   }
 
   updateGameSettings(

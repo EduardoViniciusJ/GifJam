@@ -17,12 +17,14 @@ import {
   lucideCrown,
   lucideGamepad2,
   lucideLink,
+  lucideLockKeyhole,
   lucideLoaderCircle,
   lucideLogOut,
   lucidePlay,
   lucideRefreshCw,
   lucideSparkles,
   lucideSettings2,
+  lucideGlobe2,
   lucideTrophy,
   lucideUserPlus,
   lucideUsers,
@@ -31,7 +33,7 @@ import {
   lucideX,
 } from '@ng-icons/lucide';
 import { GameRealtimeService } from '@features/game/data/game-realtime.service';
-import { GameMode, LobbyPlayerSnapshot } from '@features/game/data/game.models';
+import { GameMode, LobbyPlayerSnapshot, RoomVisibility } from '@features/game/data/game.models';
 import { GameStore } from '@features/game/state/game.store';
 import { BrandComponent } from '@shared/ui/brand/brand.component';
 import { GamePhasePage } from '@features/game/game-phase.page';
@@ -53,12 +55,14 @@ import { RoomFacade } from './state/room.facade';
       lucideCrown,
       lucideGamepad2,
       lucideLink,
+      lucideLockKeyhole,
       lucideLoaderCircle,
       lucideLogOut,
       lucidePlay,
       lucideRefreshCw,
       lucideSparkles,
       lucideSettings2,
+      lucideGlobe2,
       lucideTrophy,
       lucideUserPlus,
       lucideUsers,
@@ -139,6 +143,10 @@ export class RoomPage implements OnInit, OnDestroy {
 
   async toggleReady(): Promise<void> {
     await this.facade.toggleReady();
+  }
+
+  async setVisibility(visibility: RoomVisibility): Promise<void> {
+    await this.facade.setVisibility(visibility);
   }
 
   async updateSettings(

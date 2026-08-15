@@ -27,6 +27,12 @@ public interface IGameService
 
     Task<LobbySnapshot> SetReadyAsync(string code, Guid userId, bool isReady, CancellationToken cancellationToken);
 
+    Task<LobbySnapshot> SetVisibilityAsync(
+        string code,
+        Guid userId,
+        RoomVisibility visibility,
+        CancellationToken cancellationToken);
+
     Task<LobbySnapshot> UpdateSettingsAsync(string code, Guid userId, int totalRounds,
         int phraseSubmissionSeconds, int resultsSeconds, CancellationToken cancellationToken,
         GameMode mode = GameMode.Classic);

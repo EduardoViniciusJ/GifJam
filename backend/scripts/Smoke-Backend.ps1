@@ -42,8 +42,17 @@ try {
         throw 'Discord OAuth start did not redirect to discord.com.'
     }
 
+    $rooms = $client.GetAsync("$apiBaseUrl/api/rooms/public?pageSize=5").GetAwaiter().GetResult()
+    Assert-SuccessResponse -Response $rooms -Check 'Public room directory check'
+
+    $directoryNegotiateContent = [System.Net.Http.StringContent]::new('')
+    $directoryNegotiate = $client.PostAsync(
+        "$apiBaseUrl/hubs/rooms/negotiate?negotiateVersion=1",
+        $directoryNegotiateContent).GetAwaiter().GetResult()
+    Assert-SuccessResponse -Response $directoryNegotiate -Check 'Public room directory SignalR negotiate check'
+
     if ([string]::IsNullOrWhiteSpace($AccessToken)) {
-        Write-Output 'Public smoke checks passed. Provide -AccessToken to test authentication, room creation and SignalR.'
+        Write-Output 'Public smoke checks passed. Provide -AccessToken to test authentication, room creation and game SignalR.'
         return
     }
 

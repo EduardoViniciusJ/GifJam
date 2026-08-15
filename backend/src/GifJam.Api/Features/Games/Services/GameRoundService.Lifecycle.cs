@@ -54,6 +54,11 @@ public sealed partial class GameRoundService
             game.Code,
             stateProjector.CreateLobbySnapshot(game),
             CancellationToken.None);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(CancellationToken.None);
+        }
+
         return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 }

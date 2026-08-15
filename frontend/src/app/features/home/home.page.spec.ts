@@ -7,6 +7,7 @@ import { vi } from 'vitest';
 import { AuthService } from '@core/auth/auth.service';
 import { SessionTokenService } from '@core/auth/session-token.service';
 import { MatchmakingSnapshot } from '@features/matchmaking/data/matchmaking.models';
+import { PublicRoomSummary } from '@features/rooms/data/room-directory.models';
 
 import { HomePage } from './home.page';
 
@@ -96,6 +97,19 @@ describe('HomePage', () => {
     fixture.detectChanges();
 
     expect(fixture.nativeElement.textContent).toContain('Ranking');
+    expect(fixture.nativeElement.textContent).toContain('Salas');
+  });
+
+  it('shows up to five public room cards to logged-out visitors', async () => {
+    const fixture = TestBed.createComponent(HomePage);
+    fixture.componentInstance.rooms.items.set(
+      Array.from({ length: 5 }, (_, index) => publicRoom(`ABC1${index}`)),
+    );
+    fixture.componentInstance.rooms.loading.set(false);
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelectorAll('app-room-card')).toHaveLength(5);
+    expect(fixture.nativeElement.textContent).toContain('Salas abertas');
   });
 
   it('shows the matchmaking button and starts login for logged-out visitors', async () => {
@@ -209,5 +223,18 @@ function waitingSnapshot(playerCount: number, deadlineAt: string | null): Matchm
     gameCode: null,
     gameMode: null,
     serverTime: new Date().toISOString(),
+  };
+}
+
+function publicRoom(code: string): PublicRoomSummary {
+  return {
+    code,
+    mode: 'Classic',
+    totalRounds: 3,
+    hostDisplayName: 'Player',
+    hostAvatarUrl: null,
+    playerCount: 2,
+    capacity: 6,
+    createdAt: new Date().toISOString(),
   };
 }

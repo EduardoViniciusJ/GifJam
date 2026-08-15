@@ -18,6 +18,7 @@ using GifJam.Api.Features.Games.Services;
 using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Matchmaking;
 using GifJam.Api.Features.Ranking;
+using GifJam.Api.Features.Rooms;
 using GifJam.Api.GameEngine;
 using GifJam.Api.Integrations.Discord;
 using GifJam.Api.Integrations.Gemini;
@@ -229,6 +230,16 @@ public static class DependencyInjectionExtensions
                         QueueLimit = 0,
                         AutoReplenishment = true
                     }));
+            options.AddPolicy(RoomEndpoints.ReadRateLimitPolicy, context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    }));
         });
 
         services.AddHttpClient<IDiscordClient, DiscordClient>(client =>
@@ -267,6 +278,7 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<GameStateProjector>();
         services.AddSingleton<GameConnectionRegistry>();
         services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
+        services.AddSingleton<IRoomDirectoryRealtimeNotifier, RoomDirectoryRealtimeNotifier>();
         services.AddSingleton<IMatchmakingQueueLock, MatchmakingQueueLock>();
         services.AddSingleton<IMatchmakingRealtimeNotifier, MatchmakingRealtimeNotifier>();
         services.AddScoped<AuthStateService>();
@@ -279,6 +291,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<GameService>();
         services.AddScoped<IGameService>(serviceProvider => serviceProvider.GetRequiredService<GameService>());
         services.AddScoped<RankingService>();
+        services.AddScoped<RoomDirectoryService>();
         services.AddScoped<GameRoundService>();
         services.AddScoped<IGameRoundService>(serviceProvider => serviceProvider.GetRequiredService<GameRoundService>());
         services.AddScoped<GameCoordinator>();

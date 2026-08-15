@@ -12,9 +12,11 @@ public sealed class GameConfiguration : IEntityTypeConfiguration<Game>
         builder.HasKey(game => game.Id);
         builder.HasIndex(game => game.Code).IsUnique();
         builder.HasIndex(game => new { game.Status, game.CreatedAt });
+        builder.HasIndex(game => new { game.Visibility, game.Status, game.CreatedAt });
         builder.Property(game => game.Code).HasMaxLength(5).IsFixedLength().IsRequired();
         builder.Property(game => game.Status).HasConversion<string>().HasMaxLength(16);
         builder.Property(game => game.Mode).HasConversion<string>().HasMaxLength(24);
+        builder.Property(game => game.Visibility).HasConversion<string>().HasMaxLength(16);
         builder.Property(game => game.Version).IsConcurrencyToken();
         builder.HasOne(game => game.HostUser)
             .WithMany(user => user.HostedGames)

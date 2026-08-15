@@ -15,10 +15,12 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideArrowRight,
   lucideCrown,
+  lucideDoorOpen,
   lucideLogIn,
   lucideLogOut,
   lucideLoaderCircle,
   lucideMessageSquare,
+  lucideRefreshCw,
   lucideSmile,
   lucideTrophy,
   lucideUsers,
@@ -29,20 +31,28 @@ import { BrandComponent } from '@shared/ui/brand/brand.component';
 import { AuthService } from '@core/auth/auth.service';
 import { MatchmakingRealtimeService } from '@features/matchmaking/data/matchmaking-realtime.service';
 import { MatchmakingFacade } from '@features/matchmaking/state/matchmaking.facade';
+import { PublicRoomSummary } from '@features/rooms/data/room-directory.models';
+import { RoomDirectoryRealtimeService } from '@features/rooms/data/room-directory-realtime.service';
+import { RoomDirectoryFacade } from '@features/rooms/state/room-directory.facade';
+import { RoomCardComponent } from '@features/rooms/ui/room-card/room-card.component';
 
 @Component({
   selector: 'app-home-page',
-  imports: [BrandComponent, NgIcon, ReactiveFormsModule, RouterLink],
+  imports: [BrandComponent, NgIcon, ReactiveFormsModule, RoomCardComponent, RouterLink],
   providers: [
     MatchmakingRealtimeService,
     MatchmakingFacade,
+    RoomDirectoryRealtimeService,
+    RoomDirectoryFacade,
     provideIcons({
       lucideArrowRight,
       lucideCrown,
+      lucideDoorOpen,
       lucideLogIn,
       lucideLogOut,
       lucideLoaderCircle,
       lucideMessageSquare,
+      lucideRefreshCw,
       lucideSmile,
       lucideTrophy,
       lucideUsers,
@@ -57,6 +67,7 @@ export class HomePage implements OnInit, OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   readonly matchmaking = inject(MatchmakingFacade);
+  readonly rooms = inject(RoomDirectoryFacade);
 
   readonly user = this.auth.user;
   readonly isAuthenticated = this.auth.isAuthenticated;
@@ -68,6 +79,7 @@ export class HomePage implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    void this.rooms.initialize({ pageSize: 5, sort: 'popular' });
     this.auth
       .restore()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -78,6 +90,7 @@ export class HomePage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    void this.rooms.destroy();
     void this.matchmaking.destroy();
   }
 
@@ -136,6 +149,10 @@ export class HomePage implements OnInit, OnDestroy {
     }
 
     void this.matchmaking.toggleQueue();
+  }
+
+  openPublicRoom(room: PublicRoomSummary): void {
+    void this.rooms.openRoom(room);
   }
 
   async logout(): Promise<void> {

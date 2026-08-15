@@ -57,7 +57,7 @@ public sealed class AuthEndpointTests : IDisposable
         Assert.Contains("HttpOnly", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Secure", sessionCookie, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("SameSite=None", sessionCookie, StringComparison.OrdinalIgnoreCase);
-        client.DefaultRequestHeaders.Add("Cookie", sessionCookie.Split(';')[0]);
+        client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", auth.CsrfToken);
 
         using var reusedExchange = await client.PostAsJsonAsync(
             "/api/auth/exchange",
@@ -200,13 +200,6 @@ public sealed class AuthEndpointTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, exchange.StatusCode);
         Assert.NotNull(auth);
 
-        var sessionCookie = exchange.Headers.GetValues("Set-Cookie")
-            .Single(value => value.StartsWith("gifjam-session=", StringComparison.Ordinal))
-            .Split(';')[0];
-        var csrfCookie = exchange.Headers.GetValues("Set-Cookie")
-            .Single(value => value.StartsWith("gifjam-csrf=", StringComparison.Ordinal))
-            .Split(';')[0];
-        client.DefaultRequestHeaders.Add("Cookie", $"{sessionCookie}; {csrfCookie}");
         client.DefaultRequestHeaders.Add("X-CSRF-TOKEN", auth.CsrfToken);
 
         var remainingUser = new User

@@ -17,6 +17,65 @@ import { RankingApiService } from '@features/ranking/data/ranking-api.service';
 import { RoomFacade } from './room.facade';
 
 describe('RoomFacade', () => {
+  it('allows the host to publish the room through realtime', async () => {
+    const user = {
+      id: 'host-id',
+      discordId: 'discord-id',
+      username: 'host',
+      displayName: 'Host',
+      avatarUrl: null,
+    };
+    const setRoomVisibility = vi.fn().mockResolvedValue(undefined);
+    TestBed.configureTestingModule({
+      providers: [
+        RoomFacade,
+        GameStore,
+        { provide: AuthService, useValue: { user: signal(user) } },
+        { provide: GameApiService, useValue: {} },
+        { provide: RankingApiService, useValue: {} },
+        {
+          provide: GameRealtimeService,
+          useValue: { state: signal('connected'), setRoomVisibility },
+        },
+        { provide: Location, useValue: {} },
+        { provide: Router, useValue: {} },
+      ],
+    });
+    TestBed.inject(GameStore).setSnapshot({
+      isHost: true,
+      round: null,
+      lobby: {
+        code: 'ABC12',
+        status: 'Lobby',
+        mode: 'Classic',
+        visibility: 'Private',
+        totalRounds: 3,
+        phraseSubmissionSeconds: 60,
+        resultsSeconds: 60,
+        currentRoundNumber: 0,
+        hostUserId: user.id,
+        canStart: false,
+        players: [
+          {
+            userId: user.id,
+            username: user.username,
+            displayName: user.displayName,
+            avatarUrl: null,
+            score: 0,
+            isReady: true,
+            isConnected: true,
+            isHost: true,
+          },
+        ],
+        serverTime: new Date().toISOString(),
+      },
+    });
+
+    await TestBed.inject(RoomFacade).setVisibility('Public');
+
+    expect(setRoomVisibility).toHaveBeenCalledWith('ABC12', 'Public');
+  });
+
   it('leaves the current room, stops realtime and returns home', async () => {
     const leave = vi.fn(() => of(undefined));
     const stop = vi.fn().mockResolvedValue(undefined);
@@ -49,6 +108,7 @@ describe('RoomFacade', () => {
         code: 'ABC12',
         status: 'Lobby',
         mode: 'Classic',
+        visibility: 'Private',
         totalRounds: 3,
         phraseSubmissionSeconds: 60,
         resultsSeconds: 60,
@@ -84,6 +144,7 @@ describe('RoomFacade', () => {
         code: 'ABC12',
         status: 'Lobby' as const,
         mode: 'Classic' as const,
+        visibility: 'Private' as const,
         totalRounds: 3,
         phraseSubmissionSeconds: 60,
         resultsSeconds: 60,

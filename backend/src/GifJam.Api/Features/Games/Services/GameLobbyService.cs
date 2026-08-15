@@ -9,6 +9,7 @@ using GifJam.Api.GameEngine;
 using GifJam.Api.Realtime;
 using GifJam.Api.Features.Games.Interfaces;
 using GifJam.Api.Features.Games.Services;
+using GifJam.Api.Features.Rooms;
 using Microsoft.EntityFrameworkCore;
 
 using GifJam.Api.Features.Games;
@@ -21,6 +22,7 @@ public sealed class GameLobbyService(
     IGameCodeGenerator codeGenerator,
     IGameLockManager lockManager,
     IGameRealtimeNotifier realtimeNotifier,
+    IRoomDirectoryRealtimeNotifier roomDirectoryNotifier,
     GameStateProjector stateProjector,
     IClock clock,
     GameTelemetry gameTelemetry) : IGameService
@@ -190,6 +192,11 @@ public sealed class GameLobbyService(
         await ReloadPlayersAsync(game, cancellationToken);
         var lobby = stateProjector.CreateLobbySnapshot(game);
         await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
+
         return new(lobby, game.HostUserId == userId);
     }
 
@@ -222,7 +229,12 @@ public sealed class GameLobbyService(
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await ReloadPlayersAsync(game, cancellationToken);
-        await realtimeNotifier.LobbyUpdatedAsync(game.Code, stateProjector.CreateLobbySnapshot(game), cancellationToken);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
+        await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
     }
 
     public async Task<PlayerGameSnapshot> GetAsync(
@@ -253,6 +265,11 @@ public sealed class GameLobbyService(
             game.Code,
             stateProjector.CreatePresenceSnapshot(game),
             cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
+
         return stateProjector.CreatePlayerSnapshot(game, userId);
     }
 
@@ -287,6 +304,10 @@ public sealed class GameLobbyService(
             game.Code,
             stateProjector.CreatePresenceSnapshot(game),
             cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
     }
 
     public async Task<LobbySnapshot> SetReadyAsync(
@@ -309,6 +330,51 @@ public sealed class GameLobbyService(
         await dbContext.SaveChangesAsync(cancellationToken);
         var lobby = stateProjector.CreateLobbySnapshot(game);
         await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        return lobby;
+    }
+
+    public async Task<LobbySnapshot> SetVisibilityAsync(
+        string code,
+        Guid userId,
+        RoomVisibility visibility,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(visibility))
+        {
+            throw new BadRequestException("invalid_room_visibility", "The room visibility is invalid.");
+        }
+
+        var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        if (game.HostUserId != userId)
+        {
+            throw new ApiException(
+                "host_required",
+                "Only the host can change the room visibility.",
+                StatusCodes.Status403Forbidden);
+        }
+
+        if (game.Status != GameStatus.Lobby)
+        {
+            throw new ApiException(
+                "game_not_in_lobby",
+                "Room visibility can only change in the lobby.",
+                StatusCodes.Status409Conflict);
+        }
+
+        if (game.Visibility == visibility)
+        {
+            return stateProjector.CreateLobbySnapshot(game);
+        }
+
+        game.Visibility = visibility;
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
+        await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+
         return lobby;
     }
 
@@ -349,6 +415,11 @@ public sealed class GameLobbyService(
         await dbContext.SaveChangesAsync(cancellationToken);
         var lobby = stateProjector.CreateLobbySnapshot(game);
         await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
+
         return lobby;
     }
 

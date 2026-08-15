@@ -47,6 +47,13 @@ public sealed class GameService(GameLobbyService lobbyService) : IGameService
     public Task<LobbySnapshot> SetReadyAsync(string code, Guid userId, bool isReady, CancellationToken cancellationToken) =>
         lobbyService.SetReadyAsync(code, userId, isReady, cancellationToken);
 
+    public Task<LobbySnapshot> SetVisibilityAsync(
+        string code,
+        Guid userId,
+        RoomVisibility visibility,
+        CancellationToken cancellationToken) =>
+        lobbyService.SetVisibilityAsync(code, userId, visibility, cancellationToken);
+
     public Task<LobbySnapshot> UpdateSettingsAsync(string code, Guid userId, int totalRounds,
         int phraseSubmissionSeconds, int resultsSeconds, CancellationToken cancellationToken,
         GameMode mode = GameMode.Classic) =>
