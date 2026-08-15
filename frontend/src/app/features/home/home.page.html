@@ -144,8 +144,11 @@
         </div>
       } @else if (rooms.items().length === 0) {
         <div class="open-rooms__state">
-          <strong>Nenhuma sala pública está aberta.</strong>
-          <span>Crie a primeira sala e publique quando estiver no lobby.</span>
+          <strong>A próxima rodada começa com você</strong>
+          <span>
+            Abra uma sala pública ou entre na fila para encontrar jogadores. Novas salas aparecem
+            aqui em tempo real.
+          </span>
           <button class="button button--primary" type="button" (click)="createRoom()">
             Criar a primeira sala
           </button>
