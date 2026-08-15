@@ -145,13 +145,7 @@
       } @else if (rooms.items().length === 0) {
         <div class="open-rooms__state">
           <strong>A próxima rodada começa com você</strong>
-          <span>
-            Abra uma sala pública ou entre na fila para encontrar jogadores. Novas salas aparecem
-            aqui em tempo real.
-          </span>
-          <button class="button button--primary" type="button" (click)="createRoom()">
-            Criar a primeira sala
-          </button>
+          <span>Abra uma sala pública ou entre na fila para encontrar jogadores.</span>
         </div>
       } @else {
         <div class="room-grid room-grid--home">
