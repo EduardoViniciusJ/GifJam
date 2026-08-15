@@ -5,8 +5,8 @@ import {
   lucideArrowLeft,
   lucideArrowRight,
   lucideClock3,
-  lucideFlame,
   lucidePlus,
+  lucideTrendingUp,
 } from '@ng-icons/lucide';
 
 import { AuthService } from '@core/auth/auth.service';
@@ -23,7 +23,7 @@ import { RoomCardComponent } from './ui/room-card/room-card.component';
   providers: [
     RoomDirectoryRealtimeService,
     RoomDirectoryFacade,
-    provideIcons({ lucideArrowLeft, lucideArrowRight, lucideClock3, lucideFlame, lucidePlus }),
+    provideIcons({ lucideArrowLeft, lucideArrowRight, lucideClock3, lucidePlus, lucideTrendingUp }),
   ],
   templateUrl: './rooms.page.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
