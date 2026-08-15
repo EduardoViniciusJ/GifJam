@@ -113,6 +113,52 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "Logout",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/auth/account": {
+      "delete": {
+        "tags": [
+          "Auth"
+        ],
+        "operationId": "DeleteAccount",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/me": {
       "get": {
         "tags": [
@@ -125,7 +171,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AuthUserResponse"
+                  "$ref": "#/components/schemas/AuthStatusResponse"
                 }
               }
             }
@@ -703,6 +749,71 @@
           }
         }
       }
+    },
+    "/api/rooms/public": {
+      "get": {
+        "tags": [
+          "Rooms"
+        ],
+        "operationId": "GetPublicRooms",
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicRoomDirectoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -720,16 +831,29 @@
       "AuthResponse": {
         "type": "object",
         "properties": {
-          "accessToken": {
-            "type": "string",
-            "nullable": true
-          },
           "expiresAt": {
             "type": "string",
             "format": "date-time"
           },
           "user": {
             "$ref": "#/components/schemas/AuthUserResponse"
+          },
+          "csrfToken": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuthStatusResponse": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "$ref": "#/components/schemas/AuthUserResponse"
+          },
+          "csrfToken": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -756,6 +880,15 @@
           "avatarUrl": {
             "type": "string",
             "nullable": true
+          },
+          "totalScore": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rank": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -777,6 +910,16 @@
           },
           "mode": {
             "$ref": "#/components/schemas/GameMode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeleteAccountRequest": {
+        "type": "object",
+        "properties": {
+          "confirmation": {
+            "type": "string",
+            "nullable": true
           }
         },
         "additionalProperties": false
@@ -971,6 +1114,9 @@
           },
           "mode": {
             "$ref": "#/components/schemas/GameMode"
+          },
+          "visibility": {
+            "$ref": "#/components/schemas/RoomVisibility"
           },
           "totalRounds": {
             "type": "integer",
@@ -1289,6 +1435,72 @@
         },
         "additionalProperties": { }
       },
+      "PublicRoomDirectoryResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicRoomSummary"
+            },
+            "nullable": true
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "serverTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PublicRoomSummary": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true
+          },
+          "mode": {
+            "$ref": "#/components/schemas/GameMode"
+          },
+          "totalRounds": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hostDisplayName": {
+            "type": "string",
+            "nullable": true
+          },
+          "hostAvatarUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "playerCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "capacity": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
       "RankingEntrySnapshot": {
         "type": "object",
         "properties": {
@@ -1446,6 +1658,14 @@
         },
         "additionalProperties": false
       },
+      "RoomVisibility": {
+        "enum": [
+          0,
+          1
+        ],
+        "type": "integer",
+        "format": "int32"
+      },
       "RoundPhase": {
         "enum": [
           0,
@@ -1534,6 +1754,9 @@
     },
     {
       "name": "Ranking"
+    },
+    {
+      "name": "Rooms"
     }
   ]
 }

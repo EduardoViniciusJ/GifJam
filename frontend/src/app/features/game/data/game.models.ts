@@ -1,5 +1,6 @@
 export type GameStatus = 'Lobby' | 'InProgress' | 'Finished' | 'Closed';
 export type GameMode = 'Classic' | 'AiRandomPhrases';
+export type RoomVisibility = 'Private' | 'Public';
 export type RoundPhase =
   'PhraseSubmission' | 'PhraseVoting' | 'GifSubmission' | 'GifVoting' | 'Results' | 'Completed';
 
@@ -18,6 +19,7 @@ export interface LobbySnapshot {
   code: string;
   status: GameStatus;
   mode: GameMode;
+  visibility: RoomVisibility;
   totalRounds: number;
   phraseSubmissionSeconds: number;
   resultsSeconds: number;

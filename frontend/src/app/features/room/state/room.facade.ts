@@ -10,6 +10,7 @@ import {
   CommandRejectedMessage,
   GameMode,
   GlobalRankingSnapshot,
+  RoomVisibility,
 } from '@features/game/data/game.models';
 import { GameRealtimeService } from '@features/game/data/game-realtime.service';
 import { GameStore } from '@features/game/state/game.store';
@@ -93,6 +94,15 @@ export class RoomFacade {
     }
 
     await this.runCommand(() => this.realtime.setReady(code, !player.isReady));
+  }
+
+  async setVisibility(visibility: RoomVisibility): Promise<void> {
+    const code = this.lobby()?.code;
+    if (!code || !this.currentPlayer()?.isHost || this.actionPending()) {
+      return;
+    }
+
+    await this.runCommand(() => this.realtime.setRoomVisibility(code, visibility));
   }
 
   async updateSettings(

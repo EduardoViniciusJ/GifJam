@@ -252,6 +252,40 @@
             </header>
 
             <div class="game-settings">
+              <div class="setting-row setting-row--visibility">
+                <span>Visibilidade da sala</span>
+                <div
+                  class="segmented-control segmented-control--visibility"
+                  aria-label="Visibilidade da sala"
+                >
+                  <button
+                    type="button"
+                    [class.segmented-control__active]="lobby.visibility === 'Private'"
+                    [disabled]="!currentPlayer()?.isHost || actionPending()"
+                    (click)="setVisibility('Private')"
+                  >
+                    <ng-icon name="lucideLockKeyhole" aria-hidden="true" />
+                    Privada
+                  </button>
+                  <button
+                    type="button"
+                    [class.segmented-control__active]="lobby.visibility === 'Public'"
+                    [disabled]="!currentPlayer()?.isHost || actionPending()"
+                    (click)="setVisibility('Public')"
+                  >
+                    <ng-icon name="lucideGlobe2" aria-hidden="true" />
+                    Pública
+                  </button>
+                </div>
+                <small class="setting-row__description">
+                  {{
+                    lobby.visibility === 'Public'
+                      ? 'Qualquer pessoa conectada ao Discord poderá encontrar e entrar.'
+                      : 'Somente quem tiver o código poderá entrar.'
+                  }}
+                </small>
+              </div>
+
               <div class="setting-row setting-row--mode">
                 <span>Modo de frases</span>
                 <div class="segmented-control segmented-control--mode" aria-label="Modo de frases">

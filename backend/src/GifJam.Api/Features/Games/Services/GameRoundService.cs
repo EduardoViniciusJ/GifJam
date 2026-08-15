@@ -10,6 +10,7 @@ using GifJam.Api.Features.AiPhrases;
 using GifJam.Api.Features.Games;
 using GifJam.Api.Features.Games.Interfaces;
 using GifJam.Api.Features.Gifs;
+using GifJam.Api.Features.Rooms;
 using GifJam.Api.Realtime;
 using GifJam.Api.GameEngine;
 using Microsoft.EntityFrameworkCore;
@@ -24,6 +25,7 @@ public sealed partial class GameRoundService(
     IClock clock,
     GameStateProjector stateProjector,
     IGameRealtimeNotifier realtimeNotifier,
+    IRoomDirectoryRealtimeNotifier roomDirectoryNotifier,
     GifSelectionTokenService gifSelectionTokenService,
     AiPhraseGenerationService aiPhraseGenerationService,
     GameTelemetry gameTelemetry) : IGameRoundService

@@ -1,8 +1,10 @@
 # GifJam realtime contract
 
-Endpoint: `/hubs/game`
+Game endpoint: `/hubs/game`
 
-Authentication: JWT bearer token supplied through SignalR's `accessTokenFactory`. Every command validates the authenticated user against the requested game.
+Public room directory endpoint: `/hubs/rooms`
+
+Authentication: the browser sends the JWT session cookie to `/hubs/game`; bearer clients may use `accessTokenFactory`. Every game command validates the authenticated user. `/hubs/rooms` is anonymous, exposes no client commands and only signals that the sanitized HTTP directory should be refreshed.
 
 ## Client commands
 
@@ -11,7 +13,9 @@ Authentication: JWT bearer token supplied through SignalR's `accessTokenFactory`
 | `SubscribeGame` | `gameCode` | Joins an authorized game group and emits `StateSynced` to the caller. |
 | `RequestSync` | `gameCode` | Emits the caller's private snapshot, including completed actions. |
 | `SetReady` | `gameCode`, `isReady` | Changes readiness while the game is in the lobby. |
+| `SetRoomVisibility` | `gameCode`, `visibility` | Lets the host publish or unpublish a room while it is in the lobby. |
 | `UpdateGameSettings` | `gameCode`, `totalRounds`, `phraseSubmissionSeconds`, `resultsSeconds` | Changes lobby settings; host only. |
+| `UpdateGameSettingsWithMode` | `gameCode`, `totalRounds`, `phraseSubmissionSeconds`, `resultsSeconds`, `mode` | Changes lobby settings and mode; host only. |
 | `StartGame` | `gameCode` | Starts a ready lobby; host only. |
 | `SubmitPhrase` | `gameCode`, `text` | Stores one phrase during `PhraseSubmission`. |
 | `VotePhrase` | `gameCode`, `phraseId` | Stores one non-self phrase vote during `PhraseVoting`. |
@@ -32,5 +36,13 @@ Authentication: JWT bearer token supplied through SignalR's `accessTokenFactory`
 | `RankingUpdated` | `RankingSnapshot` | Game group after each reveal and at game completion. |
 | `GameFinished` | `GameFinishedSnapshot` | Game group after the final results interval. |
 | `CommandRejected` | `CommandRejectedMessage` | Caller only; stable error code and safe message. |
+| `MatchmakingUpdated` | `MatchmakingSnapshot` | All active connections for the matched user. |
+| `MatchFound` | `MatchFoundSnapshot` | All active connections for the matched user. |
+
+## Public directory events
+
+| Event | Payload | Audience |
+| --- | --- | --- |
+| `DirectoryChanged` | `RoomDirectoryChangedMessage` | Every `/hubs/rooms` connection; contains only server time and instructs clients to refresh `GET /api/rooms/public`. |
 
 Deadlines are UTC timestamps supplied by the server. `GifVotingPresentationEndsAt` separates the synchronized presentation from the voting window. Clients render timers locally but never advance phases themselves.

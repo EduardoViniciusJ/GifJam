@@ -1,0 +1,106 @@
+<div class="rooms-shell">
+  <header class="site-header">
+    <app-brand tone="dark" />
+    <nav class="site-nav" aria-label="Navegação principal">
+      <a routerLink="/">Início</a>
+      <a routerLink="/ranking">Ranking</a>
+    </nav>
+    <a class="session-profile" routerLink="/perfil" title="Abrir perfil">
+      @if (auth.user()?.avatarUrl; as avatarUrl) {
+        <img [src]="avatarUrl" width="36" height="36" alt="" />
+      } @else {
+        <span class="avatar-fallback">{{ auth.user()?.displayName?.charAt(0) ?? 'G' }}</span>
+      }
+      <span>{{ auth.user()?.displayName ?? 'Conta conectada' }}</span>
+      <ng-icon name="lucideArrowRight" aria-hidden="true" />
+    </a>
+  </header>
+
+  <main class="rooms-directory">
+    <div class="rooms-directory__heading">
+      <div>
+        <a class="rooms-directory__back" routerLink="/">
+          <ng-icon name="lucideArrowLeft" aria-hidden="true" />
+          Voltar para o início
+        </a>
+        <p class="eyebrow eyebrow--dark">JOGADORES ESPERANDO POR VOCÊ</p>
+        <h1>Salas públicas</h1>
+        <p>Escolha uma sala aberta e entre na próxima rodada.</p>
+      </div>
+      <button class="button button--primary" type="button" (click)="createRoom()">
+        <ng-icon name="lucidePlus" aria-hidden="true" />
+        Criar sala
+      </button>
+    </div>
+
+    <div class="rooms-directory__toolbar" aria-label="Ordenar salas">
+      <button
+        type="button"
+        [class.rooms-directory__sort--active]="directory.sort() === 'popular'"
+        (click)="directory.setSort('popular')"
+      >
+        <ng-icon name="lucideTrendingUp" aria-hidden="true" />
+        Em alta
+      </button>
+      <button
+        type="button"
+        [class.rooms-directory__sort--active]="directory.sort() === 'recent'"
+        (click)="directory.setSort('recent')"
+      >
+        <ng-icon name="lucideClock3" aria-hidden="true" />
+        Recentes
+      </button>
+    </div>
+
+    @if (directory.loading() && directory.items().length === 0) {
+      <div class="room-grid" aria-label="Carregando salas">
+        @for (placeholder of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]; track placeholder) {
+          <div class="room-card-skeleton" aria-hidden="true"></div>
+        }
+      </div>
+    } @else if (directory.error() && directory.items().length === 0) {
+      <div class="rooms-directory__state">
+        <strong>Não foi possível carregar as salas.</strong>
+        <button class="button button--outline" type="button" (click)="directory.refresh()">
+          Tentar novamente
+        </button>
+      </div>
+    } @else if (directory.items().length === 0) {
+      <div class="rooms-directory__state">
+        <strong>Nenhuma sala pública está aberta agora.</strong>
+        <p>Crie a primeira e convide a galera.</p>
+        <button class="button button--primary" type="button" (click)="createRoom()">
+          Criar a primeira sala
+        </button>
+      </div>
+    } @else {
+      <div class="room-grid">
+        @for (room of directory.items(); track room.code) {
+          <app-room-card [room]="room" (selected)="openRoom($event)" />
+        }
+      </div>
+
+      <nav class="rooms-pagination" aria-label="Paginação das salas">
+        <button
+          class="button button--outline"
+          type="button"
+          [disabled]="!directory.hasPreviousPage() || directory.loading()"
+          (click)="directory.previousPage()"
+        >
+          <ng-icon name="lucideArrowLeft" aria-hidden="true" />
+          Anterior
+        </button>
+        <span>Página {{ directory.page() }}</span>
+        <button
+          class="button button--outline"
+          type="button"
+          [disabled]="!directory.hasNextPage() || directory.loading()"
+          (click)="directory.nextPage()"
+        >
+          Próxima
+          <ng-icon name="lucideArrowRight" aria-hidden="true" />
+        </button>
+      </nav>
+    }
+  </main>
+</div>

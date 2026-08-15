@@ -30,6 +30,8 @@ public sealed class GameRecoveryTests(PostgresFixture database)
             factory.Clock.UtcNow.AddMinutes(-1));
 
         using var client = factory.CreateClient();
+        using var startup = await client.GetAsync("/health/live");
+        startup.EnsureSuccessStatusCode();
 
         await using var context = database.CreateDbContext();
         var game = await context.Games
@@ -88,6 +90,8 @@ public sealed class GameRecoveryTests(PostgresFixture database)
         await using var context = database.CreateDbContext();
         var host = CreateUser("recovery-host", now);
         var game = CreateGame(host, now, phase, phaseEndsAt);
+        var guest = CreateUser("recovery-guest", now);
+        game.Players.Add(CreatePlayer(game, guest, now));
         context.Games.Add(game);
         await context.SaveChangesAsync();
     }

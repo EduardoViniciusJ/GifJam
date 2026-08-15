@@ -4,13 +4,16 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace GifJam.Api.Realtime;
 
-public sealed class GameRealtimeNotifier(IHubContext<GameHub, IGameClient> hubContext) : IGameRealtimeNotifier
+public sealed class GameRealtimeNotifier(
+    IHubContext<GameHub, IGameClient> hubContext) : IGameRealtimeNotifier
 {
     public Task LobbyUpdatedAsync(
         string gameCode,
         LobbySnapshot snapshot,
         CancellationToken cancellationToken) =>
-        hubContext.Clients.Group(GameGroups.ForCode(gameCode)).LobbyUpdated(snapshot).WaitAsync(cancellationToken);
+        hubContext.Clients.Group(GameGroups.ForCode(gameCode))
+            .LobbyUpdated(snapshot)
+            .WaitAsync(cancellationToken);
 
     public Task PresenceChangedAsync(
         string gameCode,

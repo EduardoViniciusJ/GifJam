@@ -42,6 +42,14 @@ public sealed partial class GameHub(
         await gameService.SetReadyAsync(gameCode, userId, isReady, Context.ConnectionAborted);
     });
 
+    public Task SetRoomVisibility(string gameCode, RoomVisibility visibility) => ExecuteCommandAsync(async () =>
+    {
+        GameHubInputValidator.ValidateGameCode(gameCode);
+        GameHubInputValidator.ValidateRoomVisibility(visibility);
+        var userId = Context.User!.GetRequiredUserId();
+        await gameService.SetVisibilityAsync(gameCode, userId, visibility, Context.ConnectionAborted);
+    });
+
     public Task UpdateGameSettings(
         string gameCode,
         int totalRounds,
@@ -201,6 +209,7 @@ public sealed partial class GameHub(
         "invalid_phrase_duration" => "Escolha 30, 60 ou 90 segundos para a frase.",
         "invalid_results_duration" => "Escolha 15, 30 ou 60 segundos para a revelação.",
         "invalid_game_mode" => "Escolha um modo de jogo válido.",
+        "invalid_room_visibility" => "Escolha uma visibilidade válida para a sala.",
         "game_already_started" => "A partida já começou.",
         "phase_expired" => "Essa etapa terminou. O jogo será sincronizado.",
         "invalid_round_phase" => "Essa ação não está disponível agora.",

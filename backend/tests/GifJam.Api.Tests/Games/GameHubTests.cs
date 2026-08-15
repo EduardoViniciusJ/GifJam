@@ -7,6 +7,7 @@ using GifJam.Api.Domain.Entities;
 using GifJam.Api.Domain.Enums;
 using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Games;
+using GifJam.Api.Features.Rooms;
 using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Realtime.Contracts;
 using GifJam.Api.Tests.Auth;
@@ -215,6 +216,52 @@ public sealed class GameHubTests(PostgresFixture database)
         Assert.False(isConnected);
     }
 
+    [Fact]
+    public async Task HostCanPublishPrivateRoomAndDirectoryHubNotifiesAnonymousClients()
+    {
+        await database.ResetAsync();
+        using var factory = new DiscordAuthFactory(database);
+        var users = await SeedUsersAsync(factory);
+        var hostToken = factory.CreateAccessToken(users[0]);
+        var guestToken = factory.CreateAccessToken(users[1]);
+        using var hostClient = CreateHttpClient(factory, hostToken);
+        using var publicClient = factory.CreateClient(new() { BaseAddress = new("https://api.test") });
+        using var createResponse = await hostClient.PostAsJsonAsync("/api/games", new CreateGameRequest(3));
+        var created = await createResponse.Content.ReadFromJsonAsync<PlayerGameSnapshot>(JsonOptions)
+            ?? throw new InvalidOperationException("Created game snapshot was missing.");
+        Assert.Equal(RoomVisibility.Private, created.Lobby.Visibility);
+
+        await using var hostHub = CreateHub(factory, hostToken);
+        await using var guestHub = CreateHub(factory, guestToken);
+        await using var directoryHub = CreateDirectoryHub(factory);
+        var rejections = Channel.CreateUnbounded<CommandRejectedMessage>();
+        var directoryEvents = Channel.CreateUnbounded<RoomDirectoryChangedMessage>();
+        guestHub.On<CommandRejectedMessage>("CommandRejected", rejection => rejections.Writer.TryWrite(rejection));
+        directoryHub.On<RoomDirectoryChangedMessage>(
+            "DirectoryChanged",
+            message => directoryEvents.Writer.TryWrite(message));
+
+        await hostHub.StartAsync();
+        await guestHub.StartAsync();
+        await directoryHub.StartAsync();
+        await guestHub.InvokeAsync("SetRoomVisibility", created.Lobby.Code, RoomVisibility.Public);
+        Assert.Equal("host_required", (await ReadEventAsync(rejections.Reader)).Code);
+
+        await hostHub.InvokeAsync("SetRoomVisibility", created.Lobby.Code, RoomVisibility.Public);
+        await ReadEventAsync(directoryEvents.Reader);
+        using var listedResponse = await publicClient.GetAsync("/api/rooms/public?pageSize=5");
+        var listed = await listedResponse.Content.ReadFromJsonAsync<PublicRoomDirectoryResponse>(JsonOptions)
+            ?? throw new InvalidOperationException("Room directory response was missing.");
+        Assert.Equal(created.Lobby.Code, Assert.Single(listed.Items).Code);
+
+        await hostHub.InvokeAsync("SetRoomVisibility", created.Lobby.Code, RoomVisibility.Private);
+        await ReadEventAsync(directoryEvents.Reader);
+        using var hiddenResponse = await publicClient.GetAsync("/api/rooms/public?pageSize=5");
+        var hidden = await hiddenResponse.Content.ReadFromJsonAsync<PublicRoomDirectoryResponse>(JsonOptions)
+            ?? throw new InvalidOperationException("Room directory response was missing.");
+        Assert.Empty(hidden.Items);
+    }
+
     private async Task<User[]> SeedUsersAsync(DiscordAuthFactory factory)
     {
         await using var context = database.CreateDbContext();
@@ -262,6 +309,16 @@ public sealed class GameHubTests(PostgresFixture database)
             {
                 options.Transports = HttpTransportType.LongPolling;
                 options.AccessTokenProvider = () => Task.FromResult<string?>(token);
+                options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
+            })
+            .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))
+            .Build();
+
+    private static HubConnection CreateDirectoryHub(DiscordAuthFactory factory) =>
+        new HubConnectionBuilder()
+            .WithUrl("https://api.test/hubs/rooms", options =>
+            {
+                options.Transports = HttpTransportType.LongPolling;
                 options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler();
             })
             .AddJsonProtocol(options => options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter()))

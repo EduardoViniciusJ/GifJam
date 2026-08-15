@@ -28,6 +28,7 @@ public sealed record LobbySnapshot(
     string Code,
     GameStatus Status,
     GameMode Mode,
+    RoomVisibility Visibility,
     int TotalRounds,
     int PhraseSubmissionSeconds,
     int ResultsSeconds,

@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 
 import { authGuard } from '@core/auth/auth.guard';
+import { roomAuthGuard } from '@core/auth/room-auth.guard';
 
 export const routes: Routes = [
   {
@@ -15,8 +16,15 @@ export const routes: Routes = [
       import('@features/auth-callback/auth-callback.page').then((page) => page.AuthCallbackPage),
   },
   {
+    path: 'salas',
+    title: 'Salas públicas | GifJam',
+    canActivate: [authGuard],
+    loadComponent: () => import('@features/rooms/rooms.page').then((page) => page.RoomsPage),
+  },
+  {
     path: 'sala/:code',
     title: 'Sala | GifJam',
+    canActivate: [roomAuthGuard],
     loadComponent: () => import('@features/room/room.page').then((page) => page.RoomPage),
   },
   {

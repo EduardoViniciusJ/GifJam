@@ -7,6 +7,7 @@ using GifJam.Api.Features.Games;
 using GifJam.Api.Features.Gifs;
 using GifJam.Api.Features.Matchmaking;
 using GifJam.Api.Features.Ranking;
+using GifJam.Api.Features.Rooms;
 using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.WebUtilities;
@@ -81,7 +82,10 @@ app.MapGameEndpoints();
 app.MapMatchmakingEndpoints();
 app.MapRankingEndpoints();
 app.MapGifEndpoints();
+app.MapRoomEndpoints();
 app.MapHub<GameHub>("/hubs/game");
+app.MapHub<RoomDirectoryHub>("/hubs/rooms")
+    .RequireRateLimiting(RoomEndpoints.ReadRateLimitPolicy);
 
 app.Run();
 

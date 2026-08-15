@@ -14,6 +14,8 @@ public sealed class Game
 
     public GameMode Mode { get; set; } = GameMode.Classic;
 
+    public RoomVisibility Visibility { get; set; } = RoomVisibility.Private;
+
     public int TotalRounds { get; set; }
 
     public int PhraseSubmissionSeconds { get; set; } = 60;

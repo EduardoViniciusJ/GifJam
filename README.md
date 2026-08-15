@@ -5,7 +5,7 @@ GifJam is a multiplayer game. Players create phrases, choose GIFs, and vote for 
 ## Features
 
 - Sign in with Discord OAuth2.
-- Create or join private rooms.
+- Create private rooms, publish them in the public directory, or join by code.
 - Play with 2 to 6 players.
 - Use quick matchmaking to find a game.
 - Create phrases manually or use AI-generated random phrases.

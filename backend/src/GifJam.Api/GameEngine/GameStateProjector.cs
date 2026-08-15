@@ -36,6 +36,7 @@ public sealed class GameStateProjector(IClock clock)
             game.Code,
             game.Status,
             game.Mode,
+            game.Visibility,
             game.TotalRounds,
             game.PhraseSubmissionSeconds,
             game.ResultsSeconds,
