@@ -13,9 +13,10 @@ RUN dotnet publish "src/GifJam.Api/GifJam.Api.csproj" \
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS final
 WORKDIR /app
-ENV ASPNETCORE_HTTP_PORTS=8080
+ENV ASPNETCORE_HTTP_PORTS=8080 \
+    DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 EXPOSE 8080
-RUN apk add --no-cache krb5-libs
+RUN apk add --no-cache icu-data-full icu-libs krb5-libs tzdata
 
 COPY --from=build /app/publish .
 USER $APP_UID
