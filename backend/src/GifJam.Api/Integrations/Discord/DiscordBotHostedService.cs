@@ -193,7 +193,8 @@ public sealed partial class DiscordBotHostedService(
                 .WithTitle("Sala encerrada")
                 .WithDescription($"A sala `{roomCode}` foi encerrada pelo host.")
                 .Build();
-            await command.Channel.SendMessageAsync(
+            await SendPublicMessageAsync(
+                command,
                 text: $"Sala de {MentionUtils.MentionUser(command.User.Id)}",
                 allowedMentions: AllowedMentions.None,
                 embed: embed);
@@ -355,9 +356,32 @@ public sealed partial class DiscordBotHostedService(
         // Discord preserves the ephemeral flag on the first follow-up after
         // an ephemeral defer. Send the success message through the channel
         // so it remains public, then remove only the private loading state.
-        await command.Channel.SendMessageAsync(
+        await SendPublicMessageAsync(
+            command,
             text: $"Sala de {MentionUtils.MentionUser(command.User.Id)}",
             allowedMentions: AllowedMentions.None,
+            components: components,
+            embed: embed);
+    }
+
+    private static async Task SendPublicMessageAsync(
+        SocketSlashCommand command,
+        string text,
+        AllowedMentions allowedMentions,
+        Embed embed,
+        MessageComponent? components = null)
+    {
+        IMessageChannel? messageChannel = command.Channel;
+        messageChannel ??= await command.GetChannelAsync() as IMessageChannel;
+        if (messageChannel is null)
+        {
+            throw new InvalidOperationException(
+                $"Discord channel {command.ChannelId} is unavailable for interaction {command.Id}.");
+        }
+
+        await messageChannel.SendMessageAsync(
+            text: text,
+            allowedMentions: allowedMentions,
             components: components,
             embed: embed);
     }
