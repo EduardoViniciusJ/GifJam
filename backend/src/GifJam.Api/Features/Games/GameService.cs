@@ -11,8 +11,16 @@ namespace GifJam.Api.Features.Games;
 public sealed class GameService(GameLobbyService lobbyService) : IGameService
 {
     public Task<PlayerGameSnapshot> CreateAsync(Guid userId, int totalRounds, CancellationToken cancellationToken,
-        int phraseSubmissionSeconds = 60, int resultsSeconds = 60, GameMode mode = GameMode.Classic) =>
-        lobbyService.CreateAsync(userId, totalRounds, cancellationToken, phraseSubmissionSeconds, resultsSeconds, mode);
+        int phraseSubmissionSeconds = 60, int resultsSeconds = 60, GameMode mode = GameMode.Classic,
+        bool hostIsConnected = true) =>
+        lobbyService.CreateAsync(
+            userId,
+            totalRounds,
+            cancellationToken,
+            phraseSubmissionSeconds,
+            resultsSeconds,
+            mode,
+            hostIsConnected);
 
     public Task<PlayerGameSnapshot> CreateLobbyWithPlayersAsync(
         IReadOnlyList<Guid> userIds,
@@ -34,6 +42,9 @@ public sealed class GameService(GameLobbyService lobbyService) : IGameService
 
     public Task LeaveAsync(string code, Guid userId, CancellationToken cancellationToken) =>
         lobbyService.LeaveAsync(code, userId, cancellationToken);
+
+    public Task CloseAsync(string code, Guid userId, CancellationToken cancellationToken) =>
+        lobbyService.CloseAsync(code, userId, cancellationToken);
 
     public Task<PlayerGameSnapshot> GetAsync(string code, Guid userId, CancellationToken cancellationToken) =>
         lobbyService.GetAsync(code, userId, cancellationToken);

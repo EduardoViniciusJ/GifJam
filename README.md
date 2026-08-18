@@ -5,6 +5,7 @@ GifJam is a multiplayer game. Players create phrases, choose GIFs, and vote for 
 ## Features
 
 - Sign in with Discord OAuth2.
+- Create a private room from Discord with `/gifjam-create`.
 - Create private rooms, publish them in the public directory, or join by code.
 - Play with 2 to 6 players.
 - Use quick matchmaking to find a game.
@@ -49,6 +50,8 @@ design/     Product design references and visual assets
    ```
 
 3. Fill in `backend/.env` with development credentials for Discord, KLIPY, GIPHY, Gemini, and JWT. Git ignores this file, so never commit it.
+
+   To enable the Discord bot, follow [backend/contracts/discord-bot.md](backend/contracts/discord-bot.md). Use a development server ID locally so command updates appear immediately.
 
 4. Start PostgreSQL:
 

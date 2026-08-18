@@ -15,4 +15,12 @@ public sealed class DiscordOptions
     public string TokenEndpoint { get; set; } = "https://discord.com/api/oauth2/token";
 
     public string UserEndpoint { get; set; } = "https://discord.com/api/users/@me";
+
+    public bool BotEnabled { get; set; }
+
+    public string BotToken { get; set; } = string.Empty;
+
+    public ulong? DevelopmentGuildId { get; set; }
+
+    public string BotActivity { get; set; } = "GifJam";
 }
