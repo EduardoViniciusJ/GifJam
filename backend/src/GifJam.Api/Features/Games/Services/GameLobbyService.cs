@@ -33,7 +33,8 @@ public sealed class GameLobbyService(
         CancellationToken cancellationToken,
         int phraseSubmissionSeconds = 60,
         int resultsSeconds = 60,
-        GameMode mode = GameMode.Classic)
+        GameMode mode = GameMode.Classic,
+        bool hostIsConnected = true)
     {
         GameSettingsValidator.Validate(totalRounds, phraseSubmissionSeconds, resultsSeconds, mode);
 
@@ -60,7 +61,7 @@ public sealed class GameLobbyService(
             GameId = game.Id,
             UserId = userId,
             IsReady = true,
-            IsConnected = true,
+            IsConnected = hostIsConnected,
             JoinedAt = now,
             LastSeenAt = now
         });
@@ -226,6 +227,48 @@ public sealed class GameLobbyService(
             remainingPlayers[0].IsReady = true;
         }
 
+        game.Version++;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        await ReloadPlayersAsync(game, cancellationToken);
+        var lobby = stateProjector.CreateLobbySnapshot(game);
+        await realtimeNotifier.LobbyUpdatedAsync(game.Code, lobby, cancellationToken);
+        if (game.Visibility == RoomVisibility.Public)
+        {
+            await roomDirectoryNotifier.DirectoryChangedAsync(cancellationToken);
+        }
+    }
+
+    public async Task CloseAsync(string code, Guid userId, CancellationToken cancellationToken)
+    {
+        var gameId = await FindGameIdAsync(NormalizeCode(code), cancellationToken);
+        await using var gameLock = await lockManager.AcquireAsync(gameId, cancellationToken);
+        var game = await LoadGameAsync(gameId, cancellationToken);
+        if (game.HostUserId != userId)
+        {
+            throw new ApiException(
+                "host_required",
+                "Only the host can close the room.",
+                StatusCodes.Status403Forbidden);
+        }
+
+        if (game.Status != GameStatus.Lobby)
+        {
+            throw new ApiException(
+                "game_not_in_lobby",
+                "Only a room waiting in the lobby can be closed.",
+                StatusCodes.Status409Conflict);
+        }
+
+        var now = clock.UtcNow;
+        foreach (var player in game.Players.Where(player => player.LeftAt is null))
+        {
+            player.IsConnected = false;
+            player.LastSeenAt = now;
+            player.LeftAt = now;
+        }
+
+        game.Status = GameStatus.Closed;
+        game.FinishedAt = now;
         game.Version++;
         await dbContext.SaveChangesAsync(cancellationToken);
         await ReloadPlayersAsync(game, cancellationToken);

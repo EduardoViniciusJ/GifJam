@@ -16,6 +16,7 @@ namespace GifJam.Api.Features.Auth;
 public sealed class AuthService(
     AppDbContext dbContext,
     IDiscordClient discordClient,
+    DiscordIdentitySynchronizer identitySynchronizer,
     AuthStateService stateService,
     JwtTokenService jwtTokenService,
     IClock clock,
@@ -54,35 +55,24 @@ public sealed class AuthService(
         var returnUrl = stateService.ReadReturnUrl(state);
         var identity = await discordClient.GetIdentityAsync(authorizationCode, cancellationToken);
         var now = clock.UtcNow;
-        var user = await dbContext.Users.SingleOrDefaultAsync(
-            savedUser => savedUser.DiscordId == identity.DiscordId,
+        var exchangeCode = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(32));
+        await identitySynchronizer.ExecuteAsUserAsync(
+            identity,
+            async (user, operationCancellationToken) =>
+            {
+                dbContext.AuthExchangeCodes.Add(new()
+                {
+                    CodeHash = Hash(exchangeCode),
+                    User = user,
+                    UserId = user.Id,
+                    ExpiresAt = now.AddSeconds(60)
+                });
+
+                await dbContext.SaveChangesAsync(operationCancellationToken);
+                return true;
+            },
             cancellationToken);
 
-        if (user is null)
-        {
-            user = new()
-            {
-                DiscordId = identity.DiscordId,
-                CreatedAt = now
-            };
-            dbContext.Users.Add(user);
-        }
-
-        user.Username = identity.Username;
-        user.DisplayName = identity.DisplayName;
-        user.AvatarUrl = identity.AvatarUrl;
-        user.UpdatedAt = now;
-
-        var exchangeCode = Base64UrlEncoder.Encode(RandomNumberGenerator.GetBytes(32));
-        dbContext.AuthExchangeCodes.Add(new()
-        {
-            CodeHash = Hash(exchangeCode),
-            User = user,
-            UserId = user.Id,
-            ExpiresAt = now.AddSeconds(60)
-        });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
         return new(exchangeCode, returnUrl);
     }
 

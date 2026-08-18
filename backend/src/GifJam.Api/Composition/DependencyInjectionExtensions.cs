@@ -99,6 +99,12 @@ public static class DependencyInjectionExtensions
             .Validate(options => Uri.TryCreate(options.AuthorizationEndpoint, UriKind.Absolute, out _), "Discord AuthorizationEndpoint must be absolute.")
             .Validate(options => Uri.TryCreate(options.TokenEndpoint, UriKind.Absolute, out _), "Discord TokenEndpoint must be absolute.")
             .Validate(options => Uri.TryCreate(options.UserEndpoint, UriKind.Absolute, out _), "Discord UserEndpoint must be absolute.")
+            .Validate(options => !options.BotEnabled || !string.IsNullOrWhiteSpace(options.BotToken),
+                "Discord BotToken is required when BotEnabled is true.")
+            .Validate(options => options.DevelopmentGuildId is null or > 0,
+                "Discord DevelopmentGuildId must be a valid server ID when configured.")
+            .Validate(options => !options.BotEnabled || options.BotActivity.Length is >= 1 and <= 128,
+                "Discord BotActivity must contain between 1 and 128 characters when the bot is enabled.")
             .ValidateOnStart();
 
         services.AddOptions<JwtOptions>()
@@ -279,11 +285,15 @@ public static class DependencyInjectionExtensions
         services.AddSingleton<GameConnectionRegistry>();
         services.AddSingleton<IGameRealtimeNotifier, GameRealtimeNotifier>();
         services.AddSingleton<IRoomDirectoryRealtimeNotifier, RoomDirectoryRealtimeNotifier>();
+        services.AddSingleton<IDiscordUserLockManager, DiscordUserLockManager>();
+        services.AddSingleton<DiscordCommandRateLimiter>();
         services.AddSingleton<IMatchmakingQueueLock, MatchmakingQueueLock>();
         services.AddSingleton<IMatchmakingRealtimeNotifier, MatchmakingRealtimeNotifier>();
         services.AddScoped<AuthStateService>();
         services.AddScoped<JwtTokenService>();
         services.AddScoped<AuthService>();
+        services.AddScoped<DiscordIdentitySynchronizer>();
+        services.AddScoped<DiscordBotRoomService>();
         services.AddScoped<GifSearchService>();
         services.AddScoped<AiPhraseGenerationService>();
         services.AddScoped<IGameRepository, GameRepository>();
@@ -306,6 +316,8 @@ public static class DependencyInjectionExtensions
             services.AddHostedService<RoundScheduler>();
             services.AddHostedService<MatchmakingWorker>();
         }
+
+        services.AddHostedService<DiscordBotHostedService>();
 
         services.AddHealthChecks()
             .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["live"])

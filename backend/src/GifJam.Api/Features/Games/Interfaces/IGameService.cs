@@ -5,7 +5,8 @@ namespace GifJam.Api.Features.Games.Interfaces;
 public interface IGameService
 {
     Task<PlayerGameSnapshot> CreateAsync(Guid userId, int totalRounds, CancellationToken cancellationToken,
-        int phraseSubmissionSeconds = 60, int resultsSeconds = 60, GameMode mode = GameMode.Classic);
+        int phraseSubmissionSeconds = 60, int resultsSeconds = 60, GameMode mode = GameMode.Classic,
+        bool hostIsConnected = true);
 
     Task<PlayerGameSnapshot> CreateLobbyWithPlayersAsync(
         IReadOnlyList<Guid> userIds,
@@ -18,6 +19,8 @@ public interface IGameService
     Task<PlayerGameSnapshot> JoinAsync(string code, Guid userId, CancellationToken cancellationToken);
 
     Task LeaveAsync(string code, Guid userId, CancellationToken cancellationToken);
+
+    Task CloseAsync(string code, Guid userId, CancellationToken cancellationToken);
 
     Task<PlayerGameSnapshot> GetAsync(string code, Guid userId, CancellationToken cancellationToken);
 

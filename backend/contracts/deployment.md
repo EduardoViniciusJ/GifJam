@@ -43,7 +43,9 @@ The running API receives `ConnectionStrings__Neon`, which should use the pooled 
 10. Put Caddy or Nginx in front of the container and issue an HTTPS certificate for `gifjam.com.br`.
 11. Keep one API replica until distributed locking is introduced.
 
-The production environment should contain `ASPNETCORE_ENVIRONMENT=Production`, `ASPNETCORE_HTTP_PORTS=8080`, the Neon connection strings, the production Discord callback, the frontend origin, and the server-side API keys, including `Klipy__ApiKey` and `Giphy__ApiKey`. Do not copy local `POSTGRES_*` values into production when using Neon.
+The production environment should contain `ASPNETCORE_ENVIRONMENT=Production`, `ASPNETCORE_HTTP_PORTS=8080`, the Neon connection strings, the production Discord callback, the frontend origin, and the server-side API keys, including `Klipy__ApiKey` and `Giphy__ApiKey`. To run the Discord bot, also set `Discord__BotEnabled=true`, `Discord__BotToken`, and `Discord__BotActivity=GifJam`; leave `Discord__DevelopmentGuildId` empty so the slash command is global. Do not copy local `POSTGRES_*` values into production when using Neon.
+
+The container needs outbound HTTPS and WebSocket access to Discord. The bot uses the same API process and must remain on one replica while its user and room locks are process-local. See [discord-bot.md](discord-bot.md) for the Developer Portal and installation checklist.
 
 ## Smoke test
 
@@ -62,6 +64,7 @@ docker build -f src/GifJam.Api/Dockerfile -t gifjam-api:stage10 .
 ## Final checks
 
 - Confirm the Discord redirect URL matches exactly: `https://gifjam.com.br/api/auth/discord/callback`.
+- Confirm the Discord bot is online and `/gifjam-create` returns a working room link.
 - Confirm CORS accepts only `https://gif-jam.vercel.app` until a custom frontend domain is configured.
 - Confirm Neon migrations completed successfully.
 - Verify SignalR negotiation and WebSocket connection over HTTPS.
