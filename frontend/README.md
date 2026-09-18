@@ -8,7 +8,7 @@ Vitest, ESLint e Prettier.
 
 - Node `22.22.3+`, `24.15.0+` ou `26+` conforme o `engines` do Angular 22.
 - npm `11+`.
-- Backend local em `https://localhost:7042` para chamadas REST e SignalR.
+- Backend local em `http://localhost:5042` para chamadas REST e SignalR.
 
 O arquivo `.nvmrc` fixa Node `24.15.0` como versão recomendada para desenvolvimento.
 
@@ -41,5 +41,5 @@ npm run build:staging
 - `public/brand`: ativos otimizados usados pela aplicação.
 - `brand-sources`: arquivos mestres em alta resolução da identidade GifJam.
 
-Segredos do Discord, KLIPY e Neon pertencem exclusivamente ao backend e nunca devem ser
+Segredos do Discord, KLIPY, GIPHY e PostgreSQL pertencem exclusivamente ao backend e nunca devem ser
 adicionados ao frontend.

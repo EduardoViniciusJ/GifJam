@@ -4,8 +4,10 @@ const DEFAULT_VOLUME = 0.5;
 const STORAGE_KEY = 'gifjam.music.settings';
 
 const MUSIC_TRACKS = [
-  { id: 'gifjam', label: 'GifJam 01', src: '/audio/gifjam.mp3' },
-  { id: 'gifjam-alt', label: 'GifJam 02', src: '/audio/gifjam-alt.mp3' },
+  { id: 'letters-from-the-shore', label: 'GifJam 01', src: '/audio/Letters_from_the_Shore.mp3' },
+  { id: 'where-victors-stand', label: 'GifJam 02', src: '/audio/Where_Victors_Stand.mp3' },
+  { id: 'gifjam', label: 'GifJam 03', src: '/audio/gifjam.mp3' },
+  { id: 'gifjam-alt', label: 'GifJam 04', src: '/audio/gifjam-alt.mp3' },
 ] as const;
 
 type MusicTrackId = (typeof MUSIC_TRACKS)[number]['id'];
@@ -24,7 +26,7 @@ export class MusicPlayerService {
   readonly volume = signal(DEFAULT_VOLUME);
   readonly isMuted = signal(false);
   readonly isPlaying = signal(false);
-  readonly currentTrackId = signal<MusicTrackId>('gifjam');
+  readonly currentTrackId = signal<MusicTrackId>('letters-from-the-shore');
 
   constructor() {
     const settings = this.readSettings();
@@ -126,18 +128,18 @@ export class MusicPlayerService {
 
   private readSettings(): MusicSettings {
     if (typeof window === 'undefined') {
-      return { volume: DEFAULT_VOLUME, muted: false, trackId: 'gifjam' };
+      return { volume: DEFAULT_VOLUME, muted: false, trackId: 'letters-from-the-shore' };
     }
 
     try {
       const stored = window.localStorage.getItem(STORAGE_KEY);
       if (!stored) {
-        return { volume: DEFAULT_VOLUME, muted: false, trackId: 'gifjam' };
+        return { volume: DEFAULT_VOLUME, muted: false, trackId: 'letters-from-the-shore' };
       }
 
       const parsed: unknown = JSON.parse(stored);
       if (!parsed || typeof parsed !== 'object') {
-        return { volume: DEFAULT_VOLUME, muted: false, trackId: 'gifjam' };
+        return { volume: DEFAULT_VOLUME, muted: false, trackId: 'letters-from-the-shore' };
       }
 
       const record = parsed as Record<string, unknown>;
@@ -147,11 +149,11 @@ export class MusicPlayerService {
           ? clamp(storedVolume, 0, 1)
           : DEFAULT_VOLUME;
       const storedTrackId = record['trackId'];
-      const trackId = this.isTrackId(storedTrackId) ? storedTrackId : 'gifjam';
+      const trackId = this.isTrackId(storedTrackId) ? storedTrackId : 'letters-from-the-shore';
 
       return { volume, muted: record['muted'] === true, trackId };
     } catch {
-      return { volume: DEFAULT_VOLUME, muted: false, trackId: 'gifjam' };
+      return { volume: DEFAULT_VOLUME, muted: false, trackId: 'letters-from-the-shore' };
     }
   }
 
