@@ -33,10 +33,10 @@ services:
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-gifjam};Username=${POSTGRES_USER:-gifjam};Password=${POSTGRES_PASSWORD}
       Database__MigrateOnStartup: "true"
       DataProtection__KeysPath: /home/app/.aspnet/DataProtection-Keys
-      ApplicationUrls__FrontendUrl: ${FRONTEND_URL:-http://localhost:4200}
+      ApplicationUrls__FrontendUrl: ${FRONTEND_URL:-https://gifjam.com.br}
       Discord__ClientId: ${DISCORD_CLIENT_ID}
       Discord__ClientSecret: ${DISCORD_CLIENT_SECRET}
-      Discord__CallbackUrl: ${DISCORD_CALLBACK_URL:-http://localhost:5042/api/auth/discord/callback}
+      Discord__CallbackUrl: ${DISCORD_CALLBACK_URL:-https://gifjam.com.br/api/auth/discord/callback}
       Discord__BotEnabled: ${DISCORD_BOT_ENABLED:-false}
       Discord__BotToken: ${DISCORD_BOT_TOKEN:-}
       Discord__DevelopmentGuildId: ${DISCORD_DEVELOPMENT_GUILD_ID:-}
@@ -70,6 +70,19 @@ services:
     networks:
       - internal
       - dokploy-network
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=dokploy-network
+      - traefik.http.routers.gifjam-web.rule=Host(`gifjam.com.br`) || Host(`www.gifjam.com.br`)
+      - traefik.http.routers.gifjam-web.entrypoints=web
+      - traefik.http.routers.gifjam-web.middlewares=redirect-to-https@file
+      - traefik.http.routers.gifjam-web.service=gifjam-web
+      - traefik.http.services.gifjam-web.loadbalancer.server.port=80
+      - traefik.http.routers.gifjam-websecure.rule=Host(`gifjam.com.br`) || Host(`www.gifjam.com.br`)
+      - traefik.http.routers.gifjam-websecure.entrypoints=websecure
+      - traefik.http.routers.gifjam-websecure.tls.certresolver=letsencrypt
+      - traefik.http.routers.gifjam-websecure.service=gifjam-websecure
+      - traefik.http.services.gifjam-websecure.loadbalancer.server.port=80
 
 volumes:
   postgres_data:
@@ -80,4 +93,3 @@ networks:
     driver: bridge
   dokploy-network:
     external: true
-
