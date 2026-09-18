@@ -26,6 +26,7 @@ using GifJam.Api.Integrations.Giphy;
 using GifJam.Api.Integrations.Klipy;
 using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -39,6 +40,14 @@ public static class DependencyInjectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var dataProtection = services.AddDataProtection()
+            .SetApplicationName("GifJam");
+        var dataProtectionKeysPath = configuration["DataProtection:KeysPath"];
+        if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+        {
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+        }
+
         services.AddExceptionHandler<GlobalExceptionHandler>();
         services.AddProblemDetails(options =>
         {

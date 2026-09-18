@@ -2,6 +2,7 @@ using GifJam.Api.Common.Auth;
 using GifJam.Api.Common.Health;
 using GifJam.Api.Common.Observability;
 using GifJam.Api.Composition;
+using GifJam.Api.Data;
 using GifJam.Api.Features.Auth;
 using GifJam.Api.Features.Games;
 using GifJam.Api.Features.Gifs;
@@ -11,6 +12,7 @@ using GifJam.Api.Features.Rooms;
 using GifJam.Api.Realtime;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,6 +24,13 @@ builder.Logging.Configure(options => options.ActivityTrackingOptions =
 builder.Services.AddGifJamServices(builder.Configuration);
 
 var app = builder.Build();
+
+if (builder.Configuration.GetValue<bool>("Database:MigrateOnStartup"))
+{
+    await using var scope = app.Services.CreateAsyncScope();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await dbContext.Database.MigrateAsync();
+}
 
 app.UseForwardedHeaders();
 app.Use(async (context, next) =>
@@ -56,7 +65,10 @@ if (app.Environment.IsDevelopment() || app.Environment.IsStaging())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseCors("frontend");
 app.UseAuthentication();
 app.UseGifJamCsrf();
