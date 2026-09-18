@@ -69,6 +69,7 @@ services:
       - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_HOST_PORT:-4200}:80"
     networks:
       - internal
+      - dokploy-network
 
 volumes:
   postgres_data:
@@ -77,3 +78,6 @@ volumes:
 networks:
   internal:
     driver: bridge
+  dokploy-network:
+    external: true
+
