@@ -70,19 +70,6 @@ services:
     networks:
       - internal
       - dokploy-network
-    labels:
-      - traefik.enable=true
-      - traefik.docker.network=dokploy-network
-      - traefik.http.routers.gifjam-web.rule=Host(`gifjam.com.br`) || Host(`www.gifjam.com.br`)
-      - traefik.http.routers.gifjam-web.entrypoints=web
-      - traefik.http.routers.gifjam-web.middlewares=redirect-to-https@file
-      - traefik.http.routers.gifjam-web.service=gifjam-web
-      - traefik.http.services.gifjam-web.loadbalancer.server.port=80
-      - traefik.http.routers.gifjam-websecure.rule=Host(`gifjam.com.br`) || Host(`www.gifjam.com.br`)
-      - traefik.http.routers.gifjam-websecure.entrypoints=websecure
-      - traefik.http.routers.gifjam-websecure.tls.certresolver=letsencrypt
-      - traefik.http.routers.gifjam-websecure.service=gifjam-websecure
-      - traefik.http.services.gifjam-websecure.loadbalancer.server.port=80
 
 volumes:
   postgres_data:
