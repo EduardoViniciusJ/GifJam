@@ -1,6 +1,8 @@
 **/bin
 **/obj
 **/.vs
+**/.dotnet-home
+**/.data-protection-keys
 **/*.user
 .env
 .env.*
