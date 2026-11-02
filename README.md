@@ -1,16 +1,16 @@
 <p align="center">
-  <img src="frontend/public/brand/gifjam-app-icon.png" alt="Ícone do GifJam" width="128" height="128" />
+  <img src="frontend/public/brand/gifjam-app-icon.png" alt="GifJam icon" width="128" height="128" />
 </p>
 
 <h1 align="center">GifJam</h1>
 
 <p align="center">
-  <strong>A frase certa. O GIF perfeito.</strong><br />
-  Party game online para 2 a 6 amigos: escreva frases, escolha GIFs e vote — no navegador, com login Discord.
+  <strong>The right phrase. The perfect GIF.</strong><br />
+  Online party game for 2 to 6 friends: write phrases, pick GIFs, and vote — in the browser, with Discord login.
 </p>
 
 <p align="center">
-  <a href="https://gifjam.com.br">Jogar em gifjam.com.br</a>
+  <a href="https://gifjam.com.br">Play at gifjam.com.br</a>
 </p>
 
 <p align="center">
@@ -26,13 +26,13 @@
 
 ## How to play
 
-1. **Frase** — cada jogador envia uma frase (anônima).
-2. **Voto da frase** — o grupo escolhe o prompt da rodada.
-3. **GIF** — cada um busca e envia um GIF como resposta.
-4. **Voto do GIF** — um voto no favorito, sem saber o autor.
-5. **Revelação** — autores, pontos e ranking da partida.
+1. **Phrase** — each player submits a phrase (anonymous).
+2. **Phrase vote** — the group picks the round’s prompt.
+3. **GIF** — everyone searches and sends a GIF as their answer.
+4. **GIF vote** — one vote for your favorite, without knowing the author.
+5. **Reveal** — authors, points, and the match ranking.
 
-Uma partida de 3 rodadas costuma caber em cerca de 15 minutos. O host escolhe de 3 a 6 rodadas.
+A 3-round match usually fits in about 15 minutes. The host chooses 3 to 6 rounds.
 
 ## Features
 
