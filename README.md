@@ -1,72 +1,109 @@
-# GifJam
+<p align="center">
+  <img src="frontend/public/brand/gifjam-app-icon.png" alt="Ícone do GifJam" width="128" height="128" />
+</p>
 
-GifJam is a multiplayer game. Players create phrases, choose GIFs, and vote for the best combination. Games happen in private rooms, with Discord login and real-time updates.
+<h1 align="center">GifJam</h1>
+
+<p align="center">
+  <strong>A frase certa. O GIF perfeito.</strong><br />
+  Party game online para 2 a 6 amigos: escreva frases, escolha GIFs e vote — no navegador, com login Discord.
+</p>
+
+<p align="center">
+  <a href="https://gifjam.com.br">Jogar em gifjam.com.br</a>
+</p>
+
+<p align="center">
+  <a href="#how-to-play">How to play</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#tech-stack">Tech stack</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="https://github.com/EduardoViniciusJ/GifJam/issues">Report a bug or suggest an idea</a>
+</p>
+
+> [!NOTE]
+> GifJam is free and still in development. It is a short party game for Discord calls: everyone writes a phrase, the group votes on one, each player answers with a GIF, then you vote for the funniest combo. Rooms are private (or listed in the public directory), updates are real-time, and you play in the browser — no install.
+
+## How to play
+
+1. **Frase** — cada jogador envia uma frase (anônima).
+2. **Voto da frase** — o grupo escolhe o prompt da rodada.
+3. **GIF** — cada um busca e envia um GIF como resposta.
+4. **Voto do GIF** — um voto no favorito, sem saber o autor.
+5. **Revelação** — autores, pontos e ranking da partida.
+
+Uma partida de 3 rodadas costuma caber em cerca de 15 minutos. O host escolhe de 3 a 6 rodadas.
 
 ## Features
 
-- Sign in with Discord OAuth2.
-- Create a private room from Discord with `/gifjam-create`.
-- Create private rooms, publish them in the public directory, or join by code.
-- Play with 2 to 6 players.
-- Use quick matchmaking to find a game.
-- Create phrases manually or use AI-generated random phrases.
-- Choose GIFs, vote, and see the ranking after each round.
-- Search GIFs with KLIPY and GIPHY, with pagination for more results.
-- Receive real-time game updates with SignalR.
-- Reconnect and recover the current game state.
-- View the global ranking, manage your profile, and delete your account.
-- Hear music and sound effects during the game.
+- **Login with Discord:** name and avatar you already use in the call — no extra account.
+- **Private rooms:** create a room, share a 5-character code or link, and start when everyone is ready (2–6 players).
+- **Discord bot:** `/gifjam-create` opens a room from the server; `/gifjam-room` republishes the code and link.
+- **Public directory and quick matchmaking:** list a room or jump into a match without passing a code around.
+- **Anonymous rounds:** phrases and GIFs stay unnamed until the reveal, so votes stay unbiased.
+- **GIF search:** KLIPY and GIPHY, with pagination — search in Portuguese, pick, vote.
+- **AI prompt option:** generate a random phrase with Gemini instead of typing one.
+- **Real-time sync:** SignalR keeps lobby, timers, votes and ranking in lockstep; reconnect and recover the current phase.
+- **Global ranking, profile and account deletion:** see who is on top, manage your profile, or wipe the account.
+- **Music and SFX:** in-game soundtrack and sound effects you can mute from the UI.
+- **Play on phone or desktop:** responsive web app, no native client.
+
+## Discord commands
+
+| Command | Action |
+|---|---|
+| `/gifjam-create` | Create a private room (or republish the one you already host) |
+| `/gifjam-room` | Post the current room code and link in the channel |
+| `/gifjam-close` | Close the lobby you are hosting |
+| `/gifjam-help` | Show the command list (ephemeral) |
 
 ## Tech stack
 
-- Backend: ASP.NET Core 10, Entity Framework Core, PostgreSQL, and SignalR.
-- Frontend: Angular 22, TypeScript, Tailwind CSS, and Vitest.
-- Authentication: Discord OAuth2 and JWT.
-- GIF providers: KLIPY and GIPHY.
+| Layer | Technologies |
+|---|---|
+| Frontend | Angular 22 · TypeScript · Tailwind CSS · Spartan UI · Vitest |
+| Backend | ASP.NET Core 10 · Entity Framework Core · SignalR · PostgreSQL |
+| Auth | Discord OAuth2 · JWT |
+| GIF search | KLIPY · GIPHY |
+| Optional AI | Google Gemini (`gemini-3.5-flash`) |
+| Discord | Slash commands via Discord.Net |
+| Deploy | Docker · Traefik · Vercel-ready frontend · Neon-ready Postgres |
+| Code quality | TypeScript / Angular ESLint · Prettier · `dotnet format` · GitHub Actions |
 
-## Project structure
+## Integrations
 
-```text
-backend/    API, business rules, database, SignalR, scripts, and external integrations
-frontend/   Angular app and game interface
-design/     Product design references and visual assets
+External services the API talks to (keys stay on the backend — never in the Angular bundle):
+
+| Service | Purpose |
+|---|---|
+| [Discord](https://discord.com/developers/docs/topics/oauth2) | Login (OAuth2) and optional room-creation bot |
+| [KLIPY](https://klipy.com) | Primary GIF search |
+| [GIPHY](https://developers.giphy.com) | Additional GIF results |
+| [Gemini](https://ai.google.dev) | Optional random phrases during a round |
+
+GIF media is loaded from the provider CDN in the browser. Search credentials never leave the API.
+
+## Getting started
+
+The easiest way to play is [gifjam.com.br](https://gifjam.com.br).
+
+To run from source you need **.NET SDK 10.0.302** (or compatible), **Node.js 22.22.3+ or 24.15.0+**, **npm 11+**, and **Docker Desktop** for PostgreSQL. Then:
+
+```powershell
+git clone https://github.com/EduardoViniciusJ/GifJam.git
+cd GifJam
+Copy-Item backend/.env.example backend/.env
 ```
 
-## Requirements
+Fill `backend/.env` with development credentials for Discord, KLIPY, GIPHY, Gemini and JWT. Git ignores this file — never commit it.
 
-- .NET SDK 10.0.302 or compatible.
-- Node.js 22.22.3+ or 24.15.0+.
-- npm 11 or newer.
-- Docker Desktop, to run PostgreSQL locally.
+To enable the Discord bot locally, follow [backend/contracts/discord-bot.md](backend/contracts/discord-bot.md). Use a development server ID so slash-command updates appear immediately.
 
-## Local setup
-
-1. Clone the repository and open the project folder.
-
-2. Create the backend environment file:
-
-   ```powershell
-   Copy-Item backend/.env.example backend/.env
-   ```
-
-3. Fill in `backend/.env` with development credentials for Discord, KLIPY, GIPHY, Gemini, and JWT. Git ignores this file, so never commit it.
-
-   To enable the Discord bot, follow [backend/contracts/discord-bot.md](backend/contracts/discord-bot.md). Use a development server ID locally so command updates appear immediately.
-
-4. Start PostgreSQL:
-
-   ```powershell
-   cd backend
-   docker compose up -d postgres
-   ```
-
-5. Apply database migrations:
-
-   ```powershell
-   ./scripts/Update-Database.ps1
-   ```
-
-## Run the app
+```powershell
+cd backend
+docker compose up -d postgres
+./scripts/Update-Database.ps1
+```
 
 Start the API in one terminal:
 
@@ -74,9 +111,9 @@ Start the API in one terminal:
 ./backend/scripts/Start-Api.ps1
 ```
 
-The API runs at `https://localhost:7042`.
+The API listens at `https://localhost:7042`.
 
-In another terminal, install frontend dependencies and start the app:
+In another terminal:
 
 ```powershell
 cd frontend
@@ -84,38 +121,53 @@ npm ci
 npm start
 ```
 
-The app runs at `http://localhost:4200`. The Angular proxy sends REST and SignalR requests to the local API.
+The app runs at `http://localhost:4200`. The Angular proxy forwards REST and SignalR to the local API.
 
-## Checks
+<details>
+<summary>Development commands</summary>
 
-Run frontend checks:
+From the project root:
+
+```powershell
+cd backend
+dotnet test
+dotnet format GifJam.sln --verify-no-changes
+```
 
 ```powershell
 cd frontend
 npm run check
 ```
 
-Run backend tests:
+`npm run check` runs Prettier, ESLint, Vitest and a production build. Backend integration tests that hit PostgreSQL need Docker running.
 
-```powershell
-cd backend
-dotnet test
+</details>
+
+## Project structure
+
+```text
+backend/    API, game engine, PostgreSQL, SignalR, Discord bot, scripts
+frontend/   Angular app (public brand assets in frontend/public/brand)
+design/     Product design references and wireframes
 ```
 
-Integration tests that use PostgreSQL need Docker running.
+Keep `.github`, `backend/contracts`, `backend/openapi` and `backend/scripts` in Git. They hold CI, deployment, API contract and ops files.
 
 ## Deployment
 
-- The frontend is prepared for Vercel.
-- The API is prepared for a Docker deployment on a Linux VPS.
+- Frontend is prepared for Vercel (or the Docker image behind Traefik at `gifjam.com.br`).
+- API is prepared for Docker on a Linux VPS.
 - PostgreSQL can run on Neon in production.
-- The full deployment checklist is in [backend/contracts/deployment.md](backend/contracts/deployment.md).
+- Full checklist: [backend/contracts/deployment.md](backend/contracts/deployment.md).
 
-Keep `.github`, `backend/contracts`, `backend/openapi`, and `backend/scripts` in Git. They contain CI, deployment, API contract, and operational files.
+## Your data
+
+Discord identity (display name, avatar) is used to play. Game state lives in PostgreSQL for the active match and is cleaned up after retention (24 hours by default). You can delete your account from the profile. GIF search keys and OAuth secrets stay on the server.
+
+GifJam is an independent project and is not affiliated with Discord, KLIPY or GIPHY.
 
 ## Security
 
-- Never commit API keys, OAuth secrets, passwords, or connection strings.
-- KLIPY and GIPHY credentials are used only by the backend.
+- Never commit API keys, OAuth secrets, passwords or connection strings.
 - Use `backend/.env.example` as the local configuration reference.
-- In production, configure secrets in the hosting provider and review CORS and OAuth URLs.
+- In production, configure secrets in the host and review CORS and OAuth callback URLs.
